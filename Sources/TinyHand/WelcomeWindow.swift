@@ -34,6 +34,7 @@ final class WelcomeWindow: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
+        window?.invalidateShadow()
         window?.makeFirstResponder(nil)
         timer?.invalidate()
         let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -89,9 +90,7 @@ final class WelcomeWindow: NSObject {
         card.material = .popover
         card.blendingMode = .behindWindow
         card.state = .active
-        card.wantsLayer = true
-        card.layer?.cornerRadius = 20
-        card.layer?.masksToBounds = true
+        card.roundCorners(20)
         w.contentView = card
 
         let icon = NSImageView()

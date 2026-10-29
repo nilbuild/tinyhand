@@ -47,9 +47,7 @@ final class Toolbar {
         background.blendingMode = .behindWindow
         background.state = .active
         background.appearance = NSAppearance(named: .vibrantDark)
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 16
-        background.layer?.masksToBounds = true
+        background.roundCorners(16)
         panel.contentView = background
 
         stack.orientation = .horizontal
@@ -162,6 +160,7 @@ final class Toolbar {
 
     func show() {
         panel.orderFrontRegardless()
+        panel.invalidateShadow()
     }
 
     func hide() {
@@ -186,6 +185,7 @@ final class Toolbar {
         stack.layoutSubtreeIfNeeded()
         let size = stack.fittingSize
         panel.setContentSize(size)
+        panel.invalidateShadow()
     }
 
     private var actions: [Button: () -> Void] = [:]
