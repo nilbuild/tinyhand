@@ -37,6 +37,8 @@ final class OverlayController {
 
     private(set) var isActive = false
     var onActiveChanged: (() -> Void)?
+    // The toolbar's "Allow clicks & drawing" button: show the permission guide.
+    var onNeedsPermission: (() -> Void)?
 
     init() {
         let frame = (NSScreen.main ?? NSScreen.screens.first).map { $0.frame }
@@ -92,12 +94,9 @@ final class OverlayController {
         toolbar.onExit = { [weak self] in
             self?.exit()
         }
-        toolbar.onFixPermission = {
-            let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue()
-            _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                NSWorkspace.shared.open(url)
-            }
+        toolbar.onFixPermission = { [weak self] in
+            self?.exit()
+            self?.onNeedsPermission?()
         }
         toolbar.select(armView.style)
         tapSound.enabled = soundOn
@@ -264,6 +263,7 @@ final class OverlayController {
         armView.held = false
         downPoint = nil
         armView.ink.clear()
+        window.ignoresMouseEvents = true
         window.orderOut(nil)
         toolbar.hide()
         normalCursor = false
@@ -440,8 +440,16 @@ final class OverlayController {
         }
 
         updateZones(mouse: mouse, screen: screen)
+        // Over the Dock, the overlay takes the mouse itself, so the Dock never sees the
+        // hover: no labels or magnification, and nothing there brings the cursor back.
+        // Only there: elsewhere a mouse-catching overlay would swallow scroll gestures.
+        let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
+        let catchMouse = overDock && inputTap.isInstalled && !normalCursor
+        if window.ignoresMouseEvents == catchMouse {
+            window.ignoresMouseEvents = !catchMouse
+        }
         if !normalCursor {
-            CursorHider.reassert()
+            CursorHider.reassert(fighting: overDock)
         }
         checkPermission()
 

@@ -174,7 +174,7 @@ final class ArmView: NSView {
         for sub in [rodLayer, handLayer] {
             sub.shadowOffset = shadowOffset
             sub.shadowRadius = max(1, lift * 0.35) + 4 * pressAmount
-            sub.shadowOpacity = showShadow ? Float(0.26 + 0.16 * pressAmount) : 0
+            sub.shadowOpacity = showShadow ? Float(0.26 + 0.16 * pressAmount) * style.shadowStrength : 0
         }
 
         rodLayer.bounds = CGRect(x: 0, y: 0, width: widthPts, height: rodLen)

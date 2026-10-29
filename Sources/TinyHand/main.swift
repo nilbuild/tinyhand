@@ -42,6 +42,18 @@ if let idx = CommandLine.arguments.firstIndex(of: "--settings-test") {
     exit(0)
 }
 
+if let idx = CommandLine.arguments.firstIndex(of: "--welcome-test") {
+    _ = NSApplication.shared
+    let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/welcome.png"
+    let welcome = WelcomeWindow()
+    welcome.simulateUntrusted = CommandLine.arguments.contains("--untrusted")
+    if let data = welcome.snapshot()?.representation(using: .png, properties: [:]) {
+        try? data.write(to: URL(fileURLWithPath: out))
+        print("rendered \(out)")
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--e2e-test") {
     E2ETest.run()
     exit(0)

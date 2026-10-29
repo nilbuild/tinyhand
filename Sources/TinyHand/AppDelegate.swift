@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let overlay = OverlayController()
     private let settings = SettingsWindow()
     private let updater = Updater()
+    private let welcome = WelcomeWindow()
+    private var permissionItem: NSMenuItem?
     private let menu = NSMenu()
     private var toggleItem: NSMenuItem?
     private var clearItem: NSMenuItem?
@@ -33,11 +35,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return [frame]
         }
         enableLaunchAtLoginOnFirstRun()
-        ensureAccessibility()
         updater.start()
         setupStatusItem()
         setupSettings()
         registerHotKeys()
+
+        overlay.onNeedsPermission = { [weak self] in
+            self?.welcome.show()
+        }
+        welcome.onTryIt = { [weak self] in
+            self?.overlay.activate()
+        }
+        // First launch, or permission missing: guide the user through Accessibility.
+        if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
+            welcome.show()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -51,6 +63,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.action = #selector(statusClicked)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
+        let permission = NSMenuItem(title: "Allow Accessibility…", action: #selector(showWelcome), keyEquivalent: "")
+        permissionItem = permission
+        menu.addItem(permission)
         let toggle = NSMenuItem(title: "", action: #selector(toggle), keyEquivalent: "")
         let clear = NSMenuItem(title: "", action: #selector(clearInk), keyEquivalent: "")
         let sound = NSMenuItem(title: "Tap Sound", action: #selector(toggleSound), keyEquivalent: "")
@@ -114,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleItem?.title = "\(on ? "Turn Pointer Off" : "Turn Pointer On")    \(Preferences.toggleShortcut.display)"
         clearItem?.title = "Clear Drawing    \(Preferences.clearShortcut.display)"
         soundItem?.state = overlay.soundOn ? .on : .off
+        permissionItem?.isHidden = AXIsProcessTrusted()
     }
 
     // Tries the new shortcut; on failure keeps the old one working.
@@ -184,6 +200,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.show()
     }
 
+    @objc private func showWelcome() {
+        overlay.exit()
+        welcome.show()
+    }
+
     @objc private func checkForUpdates() {
         overlay.exit()
         updater.checkForUpdates()
@@ -206,14 +227,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.set(true, forKey: key)
         Preferences.launchAtLogin = true
         Log.write("first run: open at login = \(Preferences.launchAtLogin)")
-    }
-
-    // Swallowing clicks needs an active event tap, which needs Accessibility.
-    // Prompts once; the toolbar offers to open Settings if it's still missing.
-    private func ensureAccessibility() {
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue()
-        let options = [key: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     // The hand-cursor icon: outline when off, filled when on. Template images, so

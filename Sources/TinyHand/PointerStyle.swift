@@ -30,6 +30,12 @@ enum PointerStyle: String, CaseIterable {
         }
     }
 
+    // The bright glove with its thick black outline reads as a much heavier shadow
+    // than the soft-coloured toys, so it gets a lighter one.
+    var shadowStrength: Float {
+        self == .glove ? 0.5 : 1
+    }
+
     var inkColor: CGColor {
         self == .laser ? Ink.red : Ink.purple
     }

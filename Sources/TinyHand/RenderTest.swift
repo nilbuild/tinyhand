@@ -30,8 +30,12 @@ enum RenderTest {
 
             let view = ArmView(frame: NSRect(origin: .zero, size: panel))
             view.setStyle(style)
-            view.press()
-            view.held = true
+            // TH_RESTING=1 renders the pointer at rest: not pressed, no ink.
+            let resting = ProcessInfo.processInfo.environment["TH_RESTING"] != nil
+            if !resting {
+                view.press()
+                view.held = true
+            }
             let center = CGPoint(x: target.x + 40, y: target.y - 8)
             let a0 = atan2(target.y - center.y, target.x - center.x)
             for k in 0...60 {
@@ -44,6 +48,9 @@ enum RenderTest {
                 }
             }
             view.ink.extend(to: target)
+            if resting {
+                view.ink.clear()
+            }
             view.aim(cursor: target)
             view.layer?.render(in: ctx)
 
