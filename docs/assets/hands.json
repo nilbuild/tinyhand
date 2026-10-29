@@ -1,0 +1,102 @@
+[
+ {
+  "id": "lavender",
+  "name": "Lavender toy",
+  "src": "assets/hands/lavender.png",
+  "w": 250,
+  "h": 380,
+  "tip": [
+   67.7,
+   19.9
+  ],
+  "wrist": [
+   120.2,
+   363.2
+  ],
+  "stick": [
+   "#e8eaed",
+   "#a7acb2",
+   "#6e737a"
+  ]
+ },
+ {
+  "id": "glove",
+  "name": "Cursor glove",
+  "src": "assets/hands/glove.png",
+  "w": 317,
+  "h": 380,
+  "tip": [
+   137.5,
+   19.5
+  ],
+  "wrist": [
+   175.7,
+   363.1
+  ],
+  "stick": [
+   "#3a3a3e",
+   "#121214",
+   "#000000"
+  ]
+ },
+ {
+  "id": "coral",
+  "name": "Coral vinyl",
+  "src": "assets/hands/coral.png",
+  "w": 323,
+  "h": 380,
+  "tip": [
+   106.4,
+   20.2
+  ],
+  "wrist": [
+   157.1,
+   363.3
+  ],
+  "stick": [
+   "#ffffff",
+   "#e7e3df",
+   "#c9c3bd"
+  ]
+ },
+ {
+  "id": "plush",
+  "name": "Plush",
+  "src": "assets/hands/plush.png",
+  "w": 309,
+  "h": 380,
+  "tip": [
+   112.0,
+   20.4
+  ],
+  "wrist": [
+   146.2,
+   362.9
+  ],
+  "stick": [
+   "#f1dcb6",
+   "#d6b383",
+   "#a9824f"
+  ]
+ },
+ {
+  "id": "robot",
+  "name": "Robot",
+  "src": "assets/hands/robot.png",
+  "w": 350,
+  "h": 380,
+  "tip": [
+   120.9,
+   20.3
+  ],
+  "wrist": [
+   183.4,
+   363.3
+  ],
+  "stick": [
+   "#e2e5e8",
+   "#b6bbc1",
+   "#7d838a"
+  ]
+ }
+]
