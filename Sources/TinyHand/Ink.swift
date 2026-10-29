@@ -1,0 +1,109 @@
+import AppKit
+
+// Annotation ink drawn from the fingertip while the pointer is held down. Each
+// stroke is one CAShapeLayer, smoothed through the midpoints of the sampled
+// points. Strokes fade out a few seconds after they end unless `keep` is on.
+final class Ink {
+    let layer = CALayer()
+    var keep: Bool { Preferences.fadeSeconds <= 0 }
+
+    static let purple = CGColor(srgbRed: 0.53, green: 0.33, blue: 0.95, alpha: 1)
+    static let red = CGColor(srgbRed: 1.0, green: 0.16, blue: 0.12, alpha: 1)
+    var color = Ink.purple
+    private var fadeDelay: CFTimeInterval { max(0.5, Preferences.fadeSeconds) }
+    private let fadeDuration: CFTimeInterval = 0.6
+
+    private var stroke: CAShapeLayer?
+    private var points: [CGPoint] = []
+
+    var isDrawing: Bool { stroke != nil }
+
+    init() {
+        layer.masksToBounds = false
+    }
+
+    func begin(at point: CGPoint, width: CGFloat) {
+        let s = CAShapeLayer()
+        s.strokeColor = color
+        s.fillColor = nil
+        s.lineWidth = width
+        s.lineCap = .round
+        s.lineJoin = .round
+        // Ink sits on the glass, so only a hairline of shadow.
+        s.shadowColor = NSColor.black.cgColor
+        s.shadowOpacity = 0.18
+        s.shadowRadius = 1.5
+        s.shadowOffset = CGSize(width: 1, height: -1.5)
+        layer.addSublayer(s)
+        stroke = s
+        points = [point]
+        redraw()
+    }
+
+    func extend(to point: CGPoint) {
+        guard stroke != nil, let last = points.last else {
+            return
+        }
+        if hypot(point.x - last.x, point.y - last.y) < 1.5 {
+            return
+        }
+        points.append(point)
+        redraw()
+    }
+
+    func end() {
+        guard let s = stroke else {
+            return
+        }
+        stroke = nil
+        points = []
+        if keep {
+            return
+        }
+        fade(s)
+    }
+
+    func clear() {
+        stroke = nil
+        points = []
+        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+    }
+
+    private func fade(_ s: CAShapeLayer) {
+        let anim = CABasicAnimation(keyPath: "opacity")
+        anim.fromValue = 1
+        anim.toValue = 0
+        anim.beginTime = CACurrentMediaTime() + fadeDelay
+        anim.duration = fadeDuration
+        anim.fillMode = .forwards
+        anim.isRemovedOnCompletion = false
+        s.add(anim, forKey: "fade")
+        DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay + fadeDuration) { [weak s] in
+            s?.removeFromSuperlayer()
+        }
+    }
+
+    private func redraw() {
+        guard let s = stroke, let first = points.first else {
+            return
+        }
+        let path = CGMutablePath()
+        path.move(to: first)
+        if points.count == 1 {
+            path.addLine(to: first)
+        }
+        for i in 1..<max(1, points.count) {
+            let p = points[i]
+            let prev = points[i - 1]
+            let mid = CGPoint(x: (prev.x + p.x) / 2, y: (prev.y + p.y) / 2)
+            path.addQuadCurve(to: mid, control: prev)
+        }
+        if points.count > 1, let last = points.last {
+            path.addLine(to: last)
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        s.path = path
+        CATransaction.commit()
+    }
+}
