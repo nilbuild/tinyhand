@@ -40,7 +40,7 @@ make_bundle() {
     rm -rf "$app"
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$APP_NAME"
-    for name in lavender glove sunny plush robot; do
+    for name in lavender glove coral plush robot; do
         cp "$ROOT/assets/hand_$name.png" "$app/Contents/Resources/"
     done
     cp "$ROOT/assets/tap.wav" "$ROOT/assets/AppIcon.icns" "$app/Contents/Resources/"

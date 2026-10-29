@@ -154,6 +154,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
         ])
         w.contentView = content
+        content.removeFocusRings()
         window = w
     }
 

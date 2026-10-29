@@ -34,6 +34,7 @@ final class WelcomeWindow: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
+        window?.makeFirstResponder(nil)
         timer?.invalidate()
         let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.refresh()
@@ -141,6 +142,7 @@ final class WelcomeWindow: NSObject {
             closeButton.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
             closeButton.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
         ])
+        card.removeFocusRings()
         window = w
     }
 

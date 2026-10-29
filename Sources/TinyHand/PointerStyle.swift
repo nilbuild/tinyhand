@@ -7,7 +7,7 @@ import AppKit
 enum PointerStyle: String, CaseIterable {
     case lavender
     case glove
-    case sunny
+    case coral
     case plush
     case robot
     case laser
@@ -16,7 +16,7 @@ enum PointerStyle: String, CaseIterable {
         switch self {
         case .lavender: return "Lavender toy"
         case .glove: return "Cursor glove"
-        case .sunny: return "Sunny vinyl"
+        case .coral: return "Coral vinyl"
         case .plush: return "Plush"
         case .robot: return "Robot"
         case .laser: return "Laser dot"
@@ -47,6 +47,9 @@ enum PointerStyle: String, CaseIterable {
             let raw = UserDefaults.standard.string(forKey: defaultsKey)
             if raw == "dot" {
                 return .laser // renamed
+            }
+            if raw == "sunny" {
+                return .coral // the yellow was replaced by coral
             }
             return raw.flatMap(PointerStyle.init(rawValue:)) ?? .lavender
         }

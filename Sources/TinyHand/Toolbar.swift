@@ -101,6 +101,7 @@ final class Toolbar {
         permissionButton.isHidden = true
         stack.addArrangedSubview(permissionButton)
 
+        background.removeFocusRings()
         resize()
     }
 
