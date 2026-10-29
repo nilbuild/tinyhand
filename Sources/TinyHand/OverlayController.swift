@@ -5,6 +5,8 @@ import Carbon.HIToolbox
 // cursor. The arm lives at the bottom and aims at the pointer. While active, clicks
 // are SWALLOWED by InputTap — tapping is cosmetic only (sound + poke), it never
 // focuses, activates, or presses anything underneath. Holding and dragging draws ink.
+// Holding the interact key (⌥ by default) brings the real cursor back and lets
+// clicks through, for using the app being demoed.
 final class OverlayController {
     private final class OverlayWindow: NSWindow {
         override var canBecomeKey: Bool { false }
@@ -105,6 +107,11 @@ final class OverlayController {
         toolbar.setSoundOn(soundOn)
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
+            self?.inputTap.interactKey = Preferences.interactKey.cgFlags
+            self?.armView.updateInkColor()
+            if let self = self, self.armView.style != PointerStyle.saved {
+                self.pick(PointerStyle.saved)
+            }
         }
     }
 
@@ -247,6 +254,7 @@ final class OverlayController {
         activity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
         let installed = inputTap.install()
+        inputTap.interactKey = Preferences.interactKey.cgFlags
         inputTap.setActive(installed)
         Log.write("activate trusted=\(AXIsProcessTrusted()) tapInstalled=\(installed)")
 
@@ -311,14 +319,19 @@ final class OverlayController {
         let overMenu = menuBar.contains(mouse) || menuRects.contains { $0.contains(cgMouse) }
             || Date() < menuOpeningUntil
         // The toolbar keeps the hand (its clicks still pass through to the buttons);
-        // only menus and the menu bar bring the real cursor back.
-        let normal = !drawing && (overMenu || ownMenuOpen)
+        // only menus, the menu bar and the interact key bring the real cursor back.
+        // The keyboard's own state: the session state loses the key once we strip it
+        // from the clicks we let through.
+        let key = Preferences.interactKey.cgFlags
+        let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
+        let normal = !drawing && (overMenu || ownMenuOpen || interacting)
         // Esc belongs to an open menu (to close it), not to us.
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            Log.write(normal ? "real cursor (\(menuBar.contains(mouse) ? "menu bar" : "menu")) \(at)" : "pointer back \(at)")
+            let why = interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
+            Log.write(normal ? "real cursor (\(why)) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
             if normal {

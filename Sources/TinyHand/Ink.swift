@@ -9,6 +9,11 @@ final class Ink {
 
     static let purple = CGColor(srgbRed: 0.53, green: 0.33, blue: 0.95, alpha: 1)
     static let red = CGColor(srgbRed: 1.0, green: 0.16, blue: 0.12, alpha: 1)
+
+    static func hex(_ v: UInt32) -> CGColor {
+        CGColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+    }
     var color = Ink.purple
     private var fadeDelay: CFTimeInterval { max(0.5, Preferences.fadeSeconds) }
     private let fadeDuration: CFTimeInterval = 0.6

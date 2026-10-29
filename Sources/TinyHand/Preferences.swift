@@ -12,6 +12,61 @@ struct Shortcut: Equatable {
     static let clearDefault = Shortcut(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥X")
 }
 
+// The modifier held to click for real while the pointer is on.
+enum InteractKey: String, CaseIterable {
+    case option, command, control, off
+
+    var title: String {
+        switch self {
+        case .option: return "⌥ Option"
+        case .command: return "⌘ Command"
+        case .control: return "⌃ Control"
+        case .off: return "Off"
+        }
+    }
+
+    var cgFlags: CGEventFlags {
+        switch self {
+        case .option: return .maskAlternate
+        case .command: return .maskCommand
+        case .control: return .maskControl
+        case .off: return []
+        }
+    }
+}
+
+// The ink colour: the pointer's own, or one the user picked.
+enum InkChoice: String, CaseIterable {
+    case match, red, yellow, green, blue, white
+
+    var title: String {
+        switch self {
+        case .match: return "Match the pointer"
+        case .red: return "Red"
+        case .yellow: return "Yellow"
+        case .green: return "Green"
+        case .blue: return "Blue"
+        case .white: return "White"
+        }
+    }
+
+    // nil for .match: use the pointer's colour.
+    var color: CGColor? {
+        switch self {
+        case .match: return nil
+        case .red: return Ink.red
+        case .yellow: return Ink.hex(0xFFCC00)
+        case .green: return Ink.hex(0x30C25A)
+        case .blue: return Ink.hex(0x0A84FF)
+        case .white: return Ink.hex(0xFFFFFF)
+        }
+    }
+
+    func resolved(for style: PointerStyle) -> CGColor {
+        color ?? style.inkColor
+    }
+}
+
 // Settings that persist between launches. Posts `changed` whenever one is set.
 enum Preferences {
     static let changed = Notification.Name("TinyHandPreferencesChanged")
@@ -57,6 +112,36 @@ enum Preferences {
         set { set(newValue, "sound.laser") }
     }
 
+    static var interactKey: InteractKey {
+        get { defaults.string(forKey: "interactKey").flatMap(InteractKey.init(rawValue:)) ?? .option }
+        set { set(newValue.rawValue, "interactKey") }
+    }
+
+    static var inkChoice: InkChoice {
+        get { defaults.string(forKey: "inkChoice").flatMap(InkChoice.init(rawValue:)) ?? .match }
+        set { set(newValue.rawValue, "inkChoice") }
+    }
+
+    static var showInkButton: Bool {
+        get { defaults.object(forKey: "showInkButton") as? Bool ?? true }
+        set { set(newValue, "showInkButton") }
+    }
+
+    static let maxPinned = 8
+
+    // Pointers shown in the toolbar, in toolbar order.
+    static var pinnedStyles: [PointerStyle] {
+        get {
+            guard let raw = defaults.stringArray(forKey: "pinnedStyles") else {
+                return PointerStyle.defaultPinned
+            }
+            var seen = Set<PointerStyle>()
+            let pinned = raw.compactMap(PointerStyle.init(rawValue:)).filter { seen.insert($0).inserted }
+            return pinned.isEmpty ? PointerStyle.defaultPinned : pinned
+        }
+        set { set(newValue.map(\.rawValue), "pinnedStyles") }
+    }
+
     static var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {
@@ -73,7 +158,17 @@ enum Preferences {
         }
     }
 
-    private static func set(_ value: Any, _ key: String) {
+    // Back to first-run settings. Launch at login and Accessibility are left alone.
+    static func resetAll() {
+        for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
+                    "sound.hands", "sound.laser", "interactKey", "pinnedStyles", "pointerStyle",
+                    "inkChoice", "showInkButton"] {
+            defaults.removeObject(forKey: key)
+        }
+        NotificationCenter.default.post(name: changed, object: nil)
+    }
+
+        private static func set(_ value: Any, _ key: String) {
         defaults.set(value, forKey: key)
         NotificationCenter.default.post(name: changed, object: nil)
     }

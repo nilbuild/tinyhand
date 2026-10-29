@@ -5,264 +5,187 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TinyHand</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="A toy pointer on a stick for your Mac screen recordings. Click to tap, drag to draw, and nothing underneath gets clicked.">
+<meta name="description" content="A tiny hand for your Mac. It points at things on your screen. Click to tap, hold and drag to draw. Free and open source.">
+<meta property="og:title" content="TinyHand">
+<meta property="og:description" content="A tiny hand for your Mac. It points at things on your screen. Click to tap, hold and drag to draw.">
+<meta property="og:image" content="https://tinyhand.app/assets/icon.png">
 <link rel="icon" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: "Desk" — a light, friendly page that leads with a live mock app window you can point at; features, the pointer lineup, shortcuts and FAQ follow in a single centred column with one bold demo up top. */
+/* One calm painted desert as the first screen (and the hand's stage), with a narrow centered column of text. */
 :root {
-  --paper: #f7f6fb;
-  --ink: #1d1a2b;
-  --soft: #5f5b70;
-  --line: #e4e1ee;
-  --lavender: #7b5cf0;
-  --coral: #ff7a66;
-  --mint: #6fd3b4;
-  --card: #ffffff;
-  --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
-  --body: "Figtree", "Helvetica Neue", Arial, sans-serif;
+  --bg: #fbf0d6;
+  --fg: #4a2f1d;
+  --muted: #8a6a50;
+  --line: rgba(74, 47, 29, 0.1);
+  --btn: #c9622f;
+  --btn-fg: #fff7e6;
+  --ghost: rgba(255, 249, 235, 0.75);
+  --glass: rgba(255, 249, 235, 0.9);
+  --col: 620px;
+  --sans: "Geist", system-ui, -apple-system, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body {
-  margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55;
-  background-image: radial-gradient(rgba(123, 92, 240, 0.09) 1px, transparent 1px); background-size: 22px 22px;
-}
-.wrap {
-  max-width: 1120px; margin: 0 auto;
-  padding-left: max(20px, env(safe-area-inset-left, 0px));
-  padding-right: max(20px, env(safe-area-inset-right, 0px));
-}
-a { color: inherit; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+:focus, :focus-visible { outline: none; }
+a, button { -webkit-tap-highlight-color: transparent; }
+img { max-width: 100%; }
+.gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
 
-nav { padding-block: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 20px; text-decoration: none; }
-.brand img { width: 34px; height: 34px; }
-.links { display: flex; gap: 22px; align-items: center; font-weight: 500; color: var(--soft); }
-.links a { text-decoration: none; }
-.links a:hover { color: var(--ink); }
+.stage { position: relative; overflow: hidden; height: clamp(660px, 100vh, 960px); display: flex; flex-direction: column; }
+.art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 100%; display: block; }
+.spot { position: absolute; pointer-events: none; }
 
-.btn {
-  display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600;
-  background: var(--ink); color: #fff; padding: 14px 22px; border-radius: 999px; font-size: 16px;
-  box-shadow: 0 6px 0 rgba(29, 26, 43, 0.18); transition: transform .15s ease, box-shadow .15s ease;
-}
-.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 rgba(29, 26, 43, 0.18); }
-.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(29, 26, 43, 0.18); }
-.btn svg { width: 18px; height: 18px; fill: currentColor; }
-.btn.small { padding: 9px 16px; font-size: 14px; box-shadow: 0 4px 0 rgba(29, 26, 43, 0.15); }
+.nav { position: relative; z-index: 3; width: 100%; max-width: var(--col); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding-block: calc(22px + env(safe-area-inset-top, 0px)) 22px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; color: inherit; text-decoration: none; }
+.brand img { width: 26px; height: 26px; }
+.links { display: flex; gap: 2px; margin-right: -8px; }
+.links a { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: inherit; }
+.links a:hover { background: var(--line); }
+.links svg { width: 17px; height: 17px; fill: currentColor; }
 
-.hero { padding-block: 40px 28px; display: grid; gap: 20px; justify-items: center; text-align: center; }
-.hero h1 {
-  font-family: var(--display); font-weight: 800; font-size: clamp(44px, 8vw, 92px); line-height: 0.95; letter-spacing: -0.03em;
-  margin: 0; text-wrap: balance; max-width: 12ch;
-}
-.hero h1 .squiggle { position: relative; white-space: nowrap; color: var(--lavender); }
-.hero h1 .squiggle svg { position: absolute; left: -2%; bottom: -0.12em; width: 104%; height: 0.32em; overflow: visible; }
-.hero p { margin: 0; max-width: 46ch; color: var(--soft); font-size: 19px; text-wrap: pretty; }
-.cta { display: grid; gap: 10px; justify-items: center; }
-.fine { font-size: 14px; color: var(--soft); }
+.intro { position: relative; z-index: 3; width: 100%; max-width: var(--col); margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: clamp(40px, 10vh, 112px); }
+.eyebrow { margin: 0; font: 400 12px var(--mono); color: var(--muted); }
+h1 { margin: 0; font-weight: 700; font-size: clamp(38px, 6.2vw, 62px); line-height: 1.04; letter-spacing: -.04em; text-wrap: balance; }
+.lede { margin: 0; max-width: 34ch; font-size: 18px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
+.ctas { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 20px; border-radius: 999px; text-decoration: none; font-weight: 500; font-size: 15px; transition: transform .15s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+.btn.main { background: var(--btn); color: var(--btn-fg); }
+.btn.main svg { width: 15px; height: 15px; margin-top: -2px; }
+.btn.ghost { color: var(--fg); background: var(--ghost); }
 
-.demo { padding-block: 26px 64px; }
-.hint {
-  display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; font-size: 14px; color: var(--soft);
-}
-.hint span { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
-.window {
-  position: relative; background: var(--card); border-radius: 22px; overflow: hidden;
-  box-shadow: 0 30px 80px -30px rgba(52, 36, 120, 0.35), 0 0 0 1px rgba(29, 26, 43, 0.06);
-  aspect-ratio: 16 / 9.4; max-width: 100%; min-height: 440px;
-}
-.titlebar { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #fbfafe; }
-.titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
-.titlebar i:nth-child(1) { background: #ff6159; } .titlebar i:nth-child(2) { background: #ffbd2e; } .titlebar i:nth-child(3) { background: #28c940; }
-.titlebar b { margin-left: 10px; font-weight: 600; font-size: 13px; color: var(--soft); }
-.app { display: grid; grid-template-columns: 180px 1fr; height: calc(100% - 42px); }
-.side { border-right: 1px solid var(--line); padding: 18px 14px; display: grid; align-content: start; gap: 6px; font-size: 14px; color: var(--soft); }
-.side span { padding: 7px 10px; border-radius: 8px; }
-.side .on { background: #f1edff; color: var(--lavender); font-weight: 600; }
-.main { padding: 22px 24px 84px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto 1fr; gap: 16px; min-width: 0; }
-.kpi { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
-.kpi small { color: var(--soft); font-size: 13px; }
-.kpi strong { font-family: var(--display); font-size: clamp(22px, 3vw, 32px); font-weight: 800; font-variant-numeric: tabular-nums; }
-.kpi em { font-style: normal; font-size: 13px; color: #179c74; font-weight: 600; }
-.chart { grid-column: span 2; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-rows: auto 1fr; gap: 10px; min-height: 0; }
-.chart small { color: var(--soft); font-size: 13px; }
-.bars { display: flex; align-items: flex-end; gap: 8px; min-height: 90px; }
-.bars i { flex: 1; background: #e6e0ff; border-radius: 6px 6px 3px 3px; display: block; }
-.bars i.peak { background: var(--lavender); }
-.publish { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 12px; align-content: start; }
-.publish small { color: var(--soft); font-size: 13px; }
-.publish p { margin: 0; font-size: 14px; }
-.publish .go { justify-self: start; background: var(--coral); color: #fff; border: 0; font: 600 14px var(--body); padding: 9px 16px; border-radius: 10px; }
+.picker { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 2px; padding: 5px; border-radius: 14px; background: var(--glass); box-shadow: 0 6px 20px -8px rgba(74, 47, 29, .25); }
+.picker button { all: unset; cursor: pointer; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; }
+.picker button:hover, .picker button:focus-visible, .picker button[aria-pressed="true"] { background: var(--line); }
+.picker img { width: 27px; height: 27px; object-fit: contain; pointer-events: none; }
+.picker .laser { width: 10px; height: 10px; border-radius: 50%; background: #ff2a1f; box-shadow: 0 0 10px 2px rgba(255,42,31,.4); }
 
-section.block { padding-block: 64px; }
-.block h2 { font-family: var(--display); font-weight: 800; font-size: clamp(32px, 5vw, 52px); line-height: 1; letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
-.block .lead { margin: 0 0 32px; color: var(--soft); max-width: 52ch; }
+.more { max-width: var(--col); margin: 0 auto; padding-block: 72px calc(44px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 40px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; text-align: center; }
+.three h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.three p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+.keys { margin: 0; text-align: center; font-size: 14px; color: var(--muted); }
+kbd { font: 500 12px var(--mono); color: var(--fg); padding: 3px 6px; border-radius: 6px; background: var(--line); }
+.foot { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; font: 400 12px var(--mono); color: var(--muted); }
+.foot a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
 
-.features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-.feature { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px; display: grid; gap: 8px; align-content: start; min-width: 0; }
-.feature h3 { font-family: var(--display); font-weight: 800; font-size: 24px; margin: 0; }
-.feature p { margin: 0; color: var(--soft); }
-.feature .tag { justify-self: start; font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
-.tag.l { background: #efeaff; color: var(--lavender); } .tag.c { background: #ffece8; color: #d9503b; } .tag.m { background: #e2f7f0; color: #179c74; } .tag.k { background: #eeedf2; color: var(--ink); }
-
-.lineup { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
-.pick { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 10px; padding: 18px 8px 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); transition: transform .2s ease; }
-.pick:hover, .pick:focus-visible { transform: translateY(-4px) rotate(-2deg); background: #fdfcff; }
-.pick img { height: 96px; width: auto; max-width: 100%; object-fit: contain; }
-.pick .dot { height: 96px; display: grid; place-items: center; }
-.pick .dot i { width: 22px; height: 22px; border-radius: 50%; background: #ff2a1f; box-shadow: 0 0 0 6px rgba(255, 42, 31, .2), 0 0 26px 8px rgba(255, 42, 31, .4); display: block; }
-.pick b { font-weight: 600; font-size: 15px; }
-.pick small { color: var(--soft); font-size: 13px; margin-top: -8px; }
-
-.keys { display: grid; gap: 14px; }
-.keyrow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px; }
-.caps { display: flex; gap: 6px; min-width: 150px; }
-kbd {
-  font-family: var(--body); font-weight: 600; font-size: 17px; min-width: 42px; height: 42px; padding: 0 10px; display: grid; place-items: center;
-  background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 3px 0 #dcd8e8;
-}
-.keyrow span { color: var(--soft); }
-
-.faq { display: grid; gap: 12px; max-width: 760px; }
-details { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 4px 20px; }
-summary { cursor: pointer; list-style: none; font-weight: 600; padding-block: 14px; display: flex; justify-content: space-between; gap: 12px; }
-summary::-webkit-details-marker { display: none; }
-summary::after { content: "+"; font-family: var(--display); font-size: 22px; color: var(--lavender); line-height: 1; }
-details[open] summary::after { content: "–"; }
-details p { margin: 0 0 16px; color: var(--soft); }
-
-.end { padding-block: 72px 40px; display: grid; justify-items: center; gap: 18px; text-align: center; }
-.end img { width: 108px; height: 108px; animation: bob 3.2s ease-in-out infinite; }
-.end h2 { font-family: var(--display); font-weight: 800; font-size: clamp(34px, 6vw, 60px); margin: 0; letter-spacing: -0.02em; }
-footer { padding-block: 28px 40px; color: var(--soft); font-size: 14px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); }
-
-@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
-@media (prefers-reduced-motion: reduce) { .end img { animation: none; } .pick, .btn { transition: none; } }
-@media (max-width: 860px) {
-  .lineup { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .features { grid-template-columns: minmax(0, 1fr); }
-  .app { grid-template-columns: 1fr; }
-  .side { display: none; }
-  .links a:not(.btn) { display: none; }
-}
 @media (max-width: 560px) {
-  .window { aspect-ratio: auto; height: 520px; min-height: 0; }
-  .main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 16px 14px 76px; }
-  .chart { grid-column: span 2; order: 3; }
-  .publish { grid-column: span 2; }
-  .kpi:nth-of-type(3) { display: none; }
-  .hero p { font-size: 17px; }
+  .three { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .lede { font-size: 16.5px; }
+  .picker button { width: 34px; height: 34px; }
+  .picker img { width: 24px; height: 24px; }
 }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="brand" href="#"><img src="assets/icon.png" alt="">TinyHand</a>
-    <div class="links">
-      <a href="#features">Features</a>
-      <a href="#pointers">Pointers</a>
-      <a href="#faq">FAQ</a>
-      <a class="btn small" href="https://github.com/nilbuild/tinyhand/releases/latest">Download</a>
-    </div>
-  </nav>
-
-  <header class="hero">
-    <h1>Point at things like you <span class="squiggle">mean it<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 C 30 4, 50 4, 70 12 S 110 20, 130 10 S 170 2, 198 12" fill="none" stroke="#ff7a66" stroke-width="5" stroke-linecap="round"/></svg></span>.</h1>
-    <p>TinyHand puts a toy pointer on a stick on your Mac screen. Click to tap, drag to draw, and nothing underneath gets clicked. Made for screen recordings.</p>
-    <div class="cta">
-      <a class="btn" href="https://github.com/nilbuild/tinyhand/releases/latest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.8-1.1-2.8-4.3zM14 5.3c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z"/></svg>Download for Mac</a>
-      <span class="fine">macOS 13 or later · Apple silicon and Intel</span>
-    </div>
-  </header>
-
-  <section class="demo" aria-label="Try TinyHand">
-    <div class="hint"><span>Move your mouse in here</span><span>Click to tap</span><span>Drag to draw</span></div>
-    <div class="window" id="screen">
-      <div class="titlebar"><i></i><i></i><i></i><b>Acme · Growth</b></div>
-      <div class="app">
-        <div class="side"><span class="on">Overview</span><span>Signups</span><span>Revenue</span><span>Campaigns</span><span>Settings</span></div>
-        <div class="main">
-          <div class="kpi"><small>Weekly signups</small><strong data-target="circle">1,284</strong><em>+18% vs last week</em></div>
-          <div class="kpi"><small>Trial to paid</small><strong>7.9%</strong><em>+0.6 pts</em></div>
-          <div class="kpi"><small>Churn</small><strong>2.1%</strong><em>-0.3 pts</em></div>
-          <div class="chart"><small>Signups by day</small>
-            <div class="bars" aria-hidden="true"><i style="height:38%"></i><i style="height:52%"></i><i style="height:44%"></i><i style="height:61%"></i><i class="peak" data-target="point" style="height:92%"></i><i style="height:66%"></i><i style="height:48%"></i></div>
-          </div>
-          <div class="publish"><small>Changelog</small><p>Dark mode is ready to ship.</p><button class="go" type="button" data-target="tap" tabindex="-1">Publish update</button></div>
-        </div>
+<main>
+  <section class="stage" id="stage" data-start="glove" data-ink="#c9622f">
+    <img class="art" src="assets/art/gouache.jpg" alt="A painted desert with soft dunes, small round cacti and one cloud" data-spots='[{"x":0.88,"y":0.82,"k":"point"},{"x":0.82,"y":0.22,"k":"circle","w":0.1,"h":0.07},{"x":0.5,"y":0.86,"k":"tap"}]'>
+    <div class="nav gutter">
+      <a class="brand" href="./" data-pass><img src="assets/icon.png" alt="">TinyHand</a>
+      <div class="links">
+        <a href="https://github.com/nilbuild/tinyhand" aria-label="TinyHand on GitHub" title="GitHub" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg></a>
+        <a href="https://x.com/nilbuild" aria-label="nilbuild on X" title="@nilbuild on X" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.75 3h3.07l-6.7 7.66L22 21h-6.17l-4.83-6.32L5.47 21H2.4l7.17-8.2L2 3h6.33l4.37 5.77L17.75 3Zm-1.08 16.2h1.7L7.4 4.74H5.58L16.67 19.2Z"/></svg></a>
       </div>
     </div>
-  </section>
-
-  <section class="block" id="features">
-    <h2>Everything a pointer should do on camera</h2>
-    <p class="lead">TinyHand lives in your menu bar. Turn it on, point at what matters, and turn it off when you're done.</p>
-    <div class="features">
-      <div class="feature"><span class="tag l">Tap</span><h3>Taps, not clicks</h3><p>Clicks become a soft thock and a little press. Nothing underneath gets clicked, focused or dragged.</p></div>
-      <div class="feature"><span class="tag c">Draw</span><h3>Draw on anything</h3><p>Hold and drag to circle a number or underline a line of text. Ink fades after a few seconds, so the screen stays clean.</p></div>
-      <div class="feature"><span class="tag m">Pointers</span><h3>Five toy hands and a laser</h3><p>Pick one from a small toolbar at the bottom of the screen. It fades away while you record and comes back when you need it.</p></div>
-      <div class="feature"><span class="tag k">Calm</span><h3>Stays out of your way</h3><p>Menus and the menu bar keep working. Press Esc to clear everything and put the pointer away.</p></div>
+    <div class="intro gutter">
+      <p class="eyebrow">free and open source · macOS 13+</p>
+      <h1>A tiny hand for your Mac.</h1>
+      <p class="lede">It points at things on your screen. Click to tap. Hold and drag to draw.</p>
+      <div class="ctas">
+        <a class="btn main" href="https://github.com/nilbuild/tinyhand/releases/latest" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.9-3.5.9-.7 0-1.9-.8-3.1-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3.1.7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.5 1.3-2.6 0 0-2.5-1-2.5-3.7zM14.1 5.5c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>Download for Mac</a>
+        <a class="btn ghost" href="https://github.com/nilbuild/tinyhand" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>View on GitHub</a>
+      </div>
     </div>
+    <div class="picker" id="picker" data-pass aria-label="Pick a hand"></div>
   </section>
 
-  <section class="block" id="pointers">
-    <h2>Meet the pointers</h2>
-    <p class="lead">Pick one and try it in the window above.</p>
-    <div class="lineup" id="lineup">
-      <button class="pick" type="button" data-style="lavender"><img src="assets/hands/lavender.png" alt=""><b>Lavender toy</b><small>The original</small></button>
-      <button class="pick" type="button" data-style="glove"><img src="assets/hands/glove.png" alt=""><b>Cursor glove</b><small>Classic</small></button>
-      <button class="pick" type="button" data-style="coral"><img src="assets/hands/coral.png" alt=""><b>Coral vinyl</b><small>Glossy</small></button>
-      <button class="pick" type="button" data-style="plush"><img src="assets/hands/plush.png" alt=""><b>Plush</b><small>Soft felt</small></button>
-      <button class="pick" type="button" data-style="robot"><img src="assets/hands/robot.png" alt=""><b>Robot</b><small>Beep</small></button>
-      <button class="pick" type="button" data-style="laser"><span class="dot"><i></i></span><b>Laser dot</b><small>Quiet</small></button>
+  <section class="more gutter">
+    <div class="three">
+      <div><h3>Point</h3><p>The hand follows your mouse.</p></div>
+      <div><h3>Tap</h3><p>Clicks make a soft tap. Nothing gets clicked.</p></div>
+      <div><h3>Draw</h3><p>Lines fade after 3 seconds.</p></div>
     </div>
+    <p class="keys"><kbd>⌃⌥H</kbd> turns it on or off. <kbd>esc</kbd> puts it away.</p>
+    <div class="foot"><span>Made by <a href="https://x.com/nilbuild">@nilbuild</a></span><a href="https://github.com/nilbuild/tinyhand">Source on GitHub</a><span>© 2026</span></div>
   </section>
-
-  <section class="block" id="keys">
-    <h2>Three shortcuts, that's it</h2>
-    <p class="lead">Or click the hand in your menu bar. Shortcuts can be changed in Settings.</p>
-    <div class="keys">
-      <div class="keyrow"><div class="caps"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>H</kbd></div><span>Turn the pointer on or off</span></div>
-      <div class="keyrow"><div class="caps"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>X</kbd></div><span>Clear the drawing</span></div>
-      <div class="keyrow"><div class="caps"><kbd>esc</kbd></div><span>Clear everything and put the pointer away</span></div>
-    </div>
-  </section>
-
-  <section class="block" id="faq">
-    <h2>Questions</h2>
-    <div class="faq">
-      <details><summary>Why does TinyHand need Accessibility?</summary><p>To turn your clicks into taps. macOS only lets an app catch clicks before they reach other apps with your permission. TinyHand walks you through it on first launch and never clicks anything on its own.</p></details>
-      <details><summary>Does it work with my screen recorder?</summary><p>Yes. TinyHand draws on top of your screen, so QuickTime, Screen Studio, Loom, OBS and the built-in screenshot tool all record it.</p></details>
-      <details><summary>Can I still use my Mac while it's on?</summary><p>Menus, the menu bar and TinyHand's toolbar work as usual. Everywhere else, clicks are taps until you press Esc or ⌃⌥H.</p></details>
-      <details><summary>How does it update?</summary><p>TinyHand checks for new versions and updates itself. You can turn that off in Settings.</p></details>
-    </div>
-  </section>
-
-  <section class="end">
-    <img src="assets/icon.png" alt="TinyHand app icon">
-    <h2>Give your cursor a hand</h2>
-    <a class="btn" href="https://github.com/nilbuild/tinyhand/releases/latest">Download for Mac</a>
-    <span class="fine">macOS 13 or later · Apple silicon and Intel</span>
-  </section>
-
-  <footer><span>© 2026 Kamran Ahmed</span><span>tinyhand.app</span></footer>
-</div>
+</main>
 
 <script src="pointer.js"></script>
 <script>
-  const demo = TinyHandDemo.mount(document.getElementById('screen'));
-  document.querySelectorAll('#lineup .pick').forEach(b => {
-    b.addEventListener('click', () => {
-      demo.setStyle(b.dataset.style);
-      document.getElementById('screen').scrollIntoView({ behavior: 'smooth', block: 'center' });
+(function () {
+  const NAMES = { coral: 'Coral', lavender: 'Lavender', glove: 'Glove', plush: 'Plush', robot: 'Robot', laser: 'Laser dot' };
+  const stage = document.getElementById('stage');
+  const img = stage.querySelector('img.art');
+  const picker = document.getElementById('picker');
+
+  // Spots are in image fractions; map them through object-fit: cover and object-position.
+  function placeSpots() {
+    if (!img.naturalWidth) {
+      return;
+    }
+    const box = img.getBoundingClientRect();
+    const sr = stage.getBoundingClientRect();
+    const s = Math.max(box.width / img.naturalWidth, box.height / img.naturalHeight);
+    const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+    const pos = getComputedStyle(img).objectPosition.split(' ').map(v => parseFloat(v) / 100);
+    const ox = (box.width - dw) * pos[0] + box.left - sr.left;
+    const oy = (box.height - dh) * pos[1] + box.top - sr.top;
+    stage.querySelectorAll('.spot').forEach(e => e.remove());
+    JSON.parse(img.dataset.spots).forEach(p => {
+      const w = (p.w || 0.03) * dw, h = (p.h || 0.04) * dh;
+      const el = document.createElement('div');
+      el.className = 'spot';
+      el.dataset.target = p.k;
+      el.style.left = (ox + p.x * dw - w / 2) + 'px';
+      el.style.top = (oy + p.y * dh - h / 2) + 'px';
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      stage.appendChild(el);
     });
+  }
+
+  function start() {
+    placeSpots();
+    if (!window.TinyHandDemo) {
+      return;
+    }
+    const api = TinyHandDemo.mount(stage, { toolbar: false, autoplay: false, depthW: 0.3, start: stage.dataset.start, ink: stage.dataset.ink });
+    Object.keys(NAMES).forEach(id => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.style = id;
+      b.title = NAMES[id];
+      b.setAttribute('aria-label', NAMES[id]);
+      b.innerHTML = id === 'laser' ? '<span class="laser"></span>' : `<img src="assets/hands/${id}.png" alt="">`;
+      b.addEventListener('click', () => api.setStyle(id));
+      picker.appendChild(b);
+    });
+    const sync = id => picker.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === id)));
+    stage.addEventListener('th-style', e => sync(e.detail));
+    sync(stage.dataset.start);
+  }
+
+  let t = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(placeSpots, 150);
   });
+  if (img.complete && img.naturalWidth) {
+    start();
+    return;
+  }
+  img.addEventListener('load', start, { once: true });
+})();
 </script>
 </body>
 </html>

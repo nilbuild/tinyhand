@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""Builds the app icon and menu bar images from the SVGs in assets/icon.
+"""Builds the app icon and menu bar images.
 
-    assets/AppIcon.icns          app icon (Finder, DMG, Settings, login items)
-    assets/icon-1024.png         the same at 1024 px, for the README / web
-    assets/menubar_{off,on}[@2x|@3x].png   template images for the menu bar
+The app icon's source of truth is assets/AppIcon.icon (open it in Icon Composer).
 
-Needs rsvg-convert (brew install librsvg), Pillow, and macOS's iconutil.
+    assets/Assets.car            Liquid Glass icon for macOS 26, compiled by actool
+    assets/AppIcon.icns          flat fallback for older macOS (Finder, DMG, login items)
+    assets/icon-1024.png         the same at 1024 px, for the README
+    docs/assets/icon.png, favicon.png   for the website
+    assets/menubar_{off,on}[@2x|@3x].png   template images for the menu bar, from assets/icon
+
+Needs Xcode 26+ (actool and Icon Composer's ictool), rsvg-convert (brew install librsvg),
+Pillow, and macOS's iconutil.
 """
 import os
 import shutil
 import subprocess
 import tempfile
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON_DIR = os.path.join(ROOT, "assets", "icon")
 ASSETS = os.path.join(ROOT, "assets")
-
-# Lavender, to match the default toy pointer.
-TOP = (205, 186, 255)
-BOTTOM = (132, 96, 232)
+DOCS = os.path.join(ROOT, "docs", "assets")
+ICON_DOC = os.path.join(ASSETS, "AppIcon.icon")
+MIN_MACOS = "13.0"
 
 
 def svg_to_png(svg, size, out):
@@ -28,49 +32,34 @@ def svg_to_png(svg, size, out):
     return Image.open(out).convert("RGBA")
 
 
-def rounded_mask(size, box, radius):
-    mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(box, radius=radius, fill=255)
-    return mask
+def developer_dir():
+    return subprocess.run(["xcode-select", "-p"], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def compile_car(tmp):
+    out = os.path.join(tmp, "car")
+    os.makedirs(out)
+    subprocess.run([
+        "xcrun", "actool", ICON_DOC, "--compile", out,
+        "--output-partial-info-plist", os.path.join(out, "partial.plist"),
+        "--app-icon", "AppIcon", "--include-all-app-icons",
+        "--enable-on-demand-resources", "NO", "--development-region", "en",
+        "--target-device", "mac", "--platform", "macosx",
+        "--minimum-deployment-target", MIN_MACOS,
+    ], check=True, stdout=subprocess.DEVNULL)
+    shutil.copy(os.path.join(out, "Assets.car"), os.path.join(ASSETS, "Assets.car"))
 
 
 def app_icon(tmp):
-    s = 1024
-    # macOS icon grid: an 824 px rounded square centred on a 1024 canvas.
-    inset = 100
-    box = (inset, inset, s - inset, s - inset)
-    radius = 185
-
-    canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-
-    # Soft drop shadow under the tile.
-    shadow = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle((box[0], box[1] + 14, box[2], box[3] + 14), radius=radius, fill=(40, 20, 90, 110))
-    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(18)))
-
-    # Vertical lavender gradient tile with a faint top highlight.
-    tile = Image.new("RGBA", (s, s))
-    draw = ImageDraw.Draw(tile)
-    for y in range(s):
-        t = min(1, max(0, (y - inset) / (s - 2 * inset)))
-        draw.line([(0, y), (s, y)], fill=tuple(int(TOP[i] + (BOTTOM[i] - TOP[i]) * t) for i in range(3)) + (255,))
-    glow = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((inset - 200, inset - 520, s - inset + 200, s // 2 + 40), fill=(255, 255, 255, 38))
-    tile.alpha_composite(glow.filter(ImageFilter.GaussianBlur(120)))
-    tile.putalpha(rounded_mask(s, box, radius))
-    canvas.alpha_composite(tile)
-
-    # The pointing-hand cursor, with its own soft shadow, slightly up and right of centre.
-    hand_size = 600
-    hand = svg_to_png(os.path.join(ICON_DIR, "hand-cursor.svg"), hand_size, os.path.join(tmp, "hand.png"))
-    x = (s - hand_size) // 2 + 20
-    y = (s - hand_size) // 2 - 4
-    hand_shadow = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    silhouette = Image.new("RGBA", hand.size, (35, 15, 80, 120))
-    silhouette.putalpha(ImageChops.multiply(hand.getchannel("A"), Image.new("L", hand.size, 120)))
-    hand_shadow.alpha_composite(silhouette, (x + 18, y + 26))
-    canvas.alpha_composite(hand_shadow.filter(ImageFilter.GaussianBlur(16)))
-    canvas.alpha_composite(hand, (x, y))
+    # Icon Composer's own macOS rendering: the 824 px shape centred on a 1024 canvas (the macOS icon grid).
+    ictool = os.path.join(developer_dir(), "..", "Applications", "Icon Composer.app", "Contents", "Executables", "ictool")
+    shape = os.path.join(tmp, "shape.png")
+    subprocess.run([
+        ictool, ICON_DOC, "--export-image", "--output-file", shape, "--platform", "macOS",
+        "--rendition", "Default", "--width", "824", "--height", "824", "--scale", "1",
+    ], check=True, stdout=subprocess.DEVNULL)
+    canvas = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
+    canvas.alpha_composite(Image.open(shape).convert("RGBA"), (100, 100))
     return canvas
 
 
@@ -100,13 +89,16 @@ def menubar(tmp):
 def main():
     tmp = tempfile.mkdtemp()
     try:
+        compile_car(tmp)
         icon = app_icon(tmp)
         icon.save(os.path.join(ASSETS, "icon-1024.png"))
         build_icns(icon, tmp)
+        icon.resize((512, 512), Image.LANCZOS).save(os.path.join(DOCS, "icon.png"))
+        icon.resize((64, 64), Image.LANCZOS).save(os.path.join(DOCS, "favicon.png"))
         menubar(tmp)
     finally:
         shutil.rmtree(tmp)
-    print("wrote assets/AppIcon.icns, assets/icon-1024.png, assets/menubar_*.png")
+    print("wrote assets/Assets.car, assets/AppIcon.icns, assets/icon-1024.png, docs/assets/{icon,favicon}.png, assets/menubar_*.png")
 
 
 if __name__ == "__main__":

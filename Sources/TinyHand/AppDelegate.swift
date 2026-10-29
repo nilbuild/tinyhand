@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clearHotKey: UInt32?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        HandAsset.preloadThumbnails(PointerStyle.allCases.compactMap(\.assetName))
         Log.write("launch \(Bundle.main.bundlePath) trusted=\(AXIsProcessTrusted())")
         CursorHider.enableBackgroundHiding()
         overlay.onActiveChanged = { [weak self] in

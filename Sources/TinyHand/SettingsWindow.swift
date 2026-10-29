@@ -1,220 +1,78 @@
 import AppKit
 import Carbon.HIToolbox
+import SwiftUI
 
-// The Settings window: shortcuts, pointer size, how long drawings stay, tap sound,
-// launch at login. Changes apply immediately.
+// The Settings window: a sidebar of sections (General, Pointers, Appearance, Drawing,
+// Sound, About) drawn by SettingsView. Changes apply immediately.
 final class SettingsWindow: NSObject, NSWindowDelegate {
     // Asked to apply a recorded shortcut; returns false if it couldn't be registered.
-    var applyToggleShortcut: ((Shortcut) -> Bool)?
-    var applyClearShortcut: ((Shortcut) -> Bool)?
+    var applyToggleShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyToggleShortcut = applyToggleShortcut }
+    }
+    var applyClearShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyClearShortcut = applyClearShortcut }
+    }
     // Global shortcuts are paused while recording, so the combo being typed isn't run.
-    var onRecording: ((Bool) -> Void)?
-    // Set when the app can update itself; adds the automatic-check option.
-    var updater: Updater?
-
-    private var window: NSWindow?
-    private let message = NSTextField(labelWithString: "")
-    private var fadePopup: NSPopUpButton?
-    private var loginCheckbox: NSButton?
-    private var handSoundCheckbox: NSButton?
-    private var laserSoundCheckbox: NSButton?
-    private var sizeSlider: NSSlider?
-    private var shadowCheckbox: NSButton?
-    private var updatesCheckbox: NSButton?
-
-    private static let fadeChoices: [(String, Double)] = [
-        ("Fade after 3 seconds", 3),
-        ("Fade after 6 seconds", 6),
-        ("Fade after 10 seconds", 10),
-        ("Keep until cleared", 0),
-    ]
-
-    func show() {
-        if window == nil {
-            build()
-        }
-        refresh()
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-        window?.makeFirstResponder(nil) // nothing focused (and outlined) on open
+    var onRecording: ((Bool) -> Void)? {
+        didSet { model.onRecording = onRecording }
+    }
+    // Set when the app can update itself; adds the update options.
+    var updater: Updater? {
+        didSet { model.updater = updater }
     }
 
-    // Offscreen picture of the window's content, for tests.
-    func snapshot() -> NSBitmapImageRep? {
+    private var window: NSWindow?
+    private let model = SettingsModel()
+
+    func show(_ section: SettingsSection? = nil) {
         if window == nil {
             build()
         }
-        refresh()
-        guard let view = window?.contentView else {
+        if let section = section {
+            model.section = section
+        }
+        model.shortcutError = nil
+        model.pinMessage = nil
+        NSApp.activate(ignoringOtherApps: true)
+        if window?.isVisible != true {
+            window?.center()
+        }
+        window?.makeKeyAndOrderFront(nil)
+        window?.makeFirstResponder(nil)
+    }
+
+    // Picture of one section, for tests: shows the window briefly and captures it, since
+    // SwiftUI scroll views don't draw offscreen.
+    func snapshot(_ section: SettingsSection = .general, dark: Bool = false) -> CGImage? {
+        if window == nil {
+            build()
+        }
+        guard let w = window else {
             return nil
         }
-        // Offscreen rendering skips the window background, so draw on light grey.
-        window?.appearance = NSAppearance(named: .aqua)
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(white: 0.93, alpha: 1).cgColor
-        view.layoutSubtreeIfNeeded()
-        window?.setContentSize(view.fittingSize)
-        view.layoutSubtreeIfNeeded()
-        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-            return nil
-        }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        return rep
+        model.section = section
+        w.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        w.center()
+        w.orderFrontRegardless()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        let image = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(w.windowNumber), [.boundsIgnoreFraming, .bestResolution])
+        w.orderOut(nil)
+        return image
     }
 
     private func build() {
-        let w = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 470, height: 340),
-                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let w = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 780, height: 560),
+                         styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+                         backing: .buffered, defer: false)
         w.title = "TinyHand Settings"
+        w.titleVisibility = .hidden
+        w.titlebarAppearsTransparent = true
         w.isReleasedWhenClosed = false
         w.delegate = self
-
-        let toggle = ShortcutRecorder(shortcut: Preferences.toggleShortcut)
-        toggle.onRecording = { [weak self] on in self?.onRecording?(on) }
-        toggle.onChange = { [weak self] s in self?.apply(s, toggle, self?.applyToggleShortcut) ?? false }
-
-        let clear = ShortcutRecorder(shortcut: Preferences.clearShortcut)
-        clear.onRecording = { [weak self] on in self?.onRecording?(on) }
-        clear.onChange = { [weak self] s in self?.apply(s, clear, self?.applyClearShortcut) ?? false }
-
-        let slider = NSSlider(value: Double(Preferences.pointerSize),
-                              minValue: Double(Preferences.pointerSizeRange.lowerBound),
-                              maxValue: Double(Preferences.pointerSizeRange.upperBound),
-                              target: self, action: #selector(sizeChanged(_:)))
-        slider.isContinuous = true
-        slider.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        sizeSlider = slider
-
-        let shadow = NSButton(checkboxWithTitle: "Shadow under the pointer", target: self, action: #selector(shadowChanged(_:)))
-        shadowCheckbox = shadow
-
-        let fade = NSPopUpButton(frame: .zero, pullsDown: false)
-        fade.addItems(withTitles: SettingsWindow.fadeChoices.map { $0.0 })
-        fade.target = self
-        fade.action = #selector(fadeChanged(_:))
-        fadePopup = fade
-
-        let handSound = NSButton(checkboxWithTitle: "Hands", target: self, action: #selector(soundChanged(_:)))
-        let laserSound = NSButton(checkboxWithTitle: "Laser dot", target: self, action: #selector(soundChanged(_:)))
-        handSoundCheckbox = handSound
-        laserSoundCheckbox = laserSound
-        let sounds = NSStackView(views: [handSound, laserSound])
-        sounds.spacing = 16
-
-        let login = NSButton(checkboxWithTitle: "Open TinyHand when you log in", target: self, action: #selector(loginChanged(_:)))
-        loginCheckbox = login
-        let updates = NSButton(checkboxWithTitle: "Check for updates automatically", target: self, action: #selector(updatesChanged(_:)))
-        updatesCheckbox = updates
-
-        let grid = NSGridView(views: [
-            [label("Turn pointer on/off:"), toggle],
-            [label("Clear drawing:"), clear],
-            [label("Pointer size:"), slider],
-            [NSGridCell.emptyContentView, shadow],
-            [label("Drawings:"), fade],
-            [label("Tap sound:"), sounds],
-            [NSGridCell.emptyContentView, login],
-            [NSGridCell.emptyContentView, updates],
-        ])
-        grid.rowSpacing = 14
-        grid.columnSpacing = 12
-        grid.column(at: 0).xPlacement = .trailing
-        grid.rowAlignment = .firstBaseline
-
-        message.textColor = .systemRed
-        message.font = NSFont.systemFont(ofSize: 12)
-
-        let hint = NSTextField(wrappingLabelWithString:
-            "Click the menu bar icon to turn the pointer on or off; right-click it for the menu. " +
-            "While it's on: click to tap, hold and drag to draw, Esc to clear and exit.")
-        hint.textColor = .secondaryLabelColor
-        hint.font = NSFont.systemFont(ofSize: 12)
-        hint.preferredMaxLayoutWidth = 410
-        hint.widthAnchor.constraint(lessThanOrEqualToConstant: 410).isActive = true
-
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        let about = NSTextField(labelWithString: "TinyHand \(version)")
-        about.textColor = .tertiaryLabelColor
-        about.font = NSFont.systemFont(ofSize: 11)
-
-        let stack = NSStackView(views: [grid, message, hint, about])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 14
-        stack.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 24, right: 28)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let content = NSView()
-        content.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: content.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-        ])
-        w.contentView = content
-        content.removeFocusRings()
+        let host = NSHostingView(rootView: SettingsView(model: model))
+        host.focusRingType = .none
+        w.contentView = host
         window = w
-    }
-
-    private func refresh() {
-        message.stringValue = ""
-        message.isHidden = true
-        sizeSlider?.doubleValue = Double(Preferences.pointerSize)
-        shadowCheckbox?.state = Preferences.showShadow ? .on : .off
-        let index = SettingsWindow.fadeChoices.firstIndex { $0.1 == Preferences.fadeSeconds } ?? 0
-        fadePopup?.selectItem(at: index)
-        handSoundCheckbox?.state = Preferences.handSound ? .on : .off
-        laserSoundCheckbox?.state = Preferences.laserSound ? .on : .off
-        loginCheckbox?.state = Preferences.launchAtLogin ? .on : .off
-        updatesCheckbox?.isHidden = updater == nil
-        updatesCheckbox?.state = updater?.automaticallyChecks == true ? .on : .off
-    }
-
-    private func apply(_ s: Shortcut, _ recorder: ShortcutRecorder, _ handler: ((Shortcut) -> Bool)?) -> Bool {
-        guard handler?(s) == true else {
-            message.stringValue = "\(s.display) is already used by another app. Pick a different shortcut."
-            message.isHidden = false
-            return false
-        }
-        message.stringValue = ""
-        message.isHidden = true
-        return true
-    }
-
-    private func label(_ text: String) -> NSTextField {
-        NSTextField(labelWithString: text)
-    }
-
-    @objc private func sizeChanged(_ sender: NSSlider) {
-        Preferences.pointerSize = CGFloat(sender.doubleValue)
-    }
-
-    @objc private func shadowChanged(_ sender: NSButton) {
-        Preferences.showShadow = sender.state == .on
-    }
-
-    @objc private func fadeChanged(_ sender: NSPopUpButton) {
-        Preferences.fadeSeconds = SettingsWindow.fadeChoices[max(0, sender.indexOfSelectedItem)].1
-    }
-
-    @objc private func soundChanged(_ sender: NSButton) {
-        if sender === handSoundCheckbox {
-            Preferences.handSound = sender.state == .on
-        }
-        if sender === laserSoundCheckbox {
-            Preferences.laserSound = sender.state == .on
-        }
-    }
-
-    @objc private func updatesChanged(_ sender: NSButton) {
-        updater?.automaticallyChecks = sender.state == .on
-    }
-
-    @objc private func loginChanged(_ sender: NSButton) {
-        Preferences.launchAtLogin = sender.state == .on
-        sender.state = Preferences.launchAtLogin ? .on : .off
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -233,13 +91,40 @@ final class ShortcutRecorder: NSButton {
     init(shortcut: Shortcut) {
         self.shortcut = shortcut
         super.init(frame: .zero)
-        bezelStyle = .rounded
-        setButtonType(.momentaryPushIn)
+        isBordered = false
+        setButtonType(.momentaryChange)
         focusRingType = .none
+        wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
         target = self
         action = #selector(startRecording)
-        widthAnchor.constraint(equalToConstant: 150).isActive = true
-        title = shortcut.display
+        widthAnchor.constraint(equalToConstant: 120).isActive = true
+        heightAnchor.constraint(equalToConstant: 26).isActive = true
+        setLabel(shortcut.display)
+    }
+
+    // Shows a shortcut set elsewhere (e.g. by a reset), unless one is being recorded.
+    func show(_ s: Shortcut) {
+        guard monitor == nil, s != shortcut else {
+            return
+        }
+        shortcut = s
+        setLabel(s.display)
+    }
+
+    private func setLabel(_ text: String) {
+        attributedTitle = NSAttributedString(string: text, attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.labelColor,
+        ])
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.08).cgColor
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -250,7 +135,7 @@ final class ShortcutRecorder: NSButton {
         guard monitor == nil else {
             return
         }
-        title = "Type shortcut…"
+        setLabel("Type shortcut…")
         onRecording?(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handle(event)
@@ -263,7 +148,7 @@ final class ShortcutRecorder: NSButton {
             NSEvent.removeMonitor(m)
         }
         monitor = nil
-        title = shortcut.display
+        setLabel(shortcut.display)
         onRecording?(false)
     }
 

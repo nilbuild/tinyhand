@@ -5,6 +5,9 @@ import AppKit
 // underneath. It reports down/up (sound + tap animation) and left drags (ink).
 // Mouse *moves* are left alone, so the hand still follows the pointer.
 //
+// A press made while the interact key (e.g. ⌥) is held goes through for real, with
+// that key taken off, so it lands as a plain click, drag or right-click.
+//
 // macOS holds back ALL mouse input until a tap's callback returns, so the tap runs
 // on its own thread: a busy or stalled main thread can never freeze clicks system
 // wide. The callback only decides; the work (sound, ink) runs on the main thread.
@@ -21,6 +24,8 @@ final class InputTap {
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
+    private var _interactKey: CGEventFlags = []
+    private var _interactPress = false
 
     // Presses that start in these rects (CG global coords, top-left origin) reach
     // the app underneath for real: our toolbar and menu bar icon. Follow-up drags
@@ -32,6 +37,17 @@ final class InputTap {
 
     private var active: Bool {
         lock.withLock { _active }
+    }
+
+    // Modifier that makes presses real while held; empty turns it off.
+    var interactKey: CGEventFlags {
+        get { lock.withLock { _interactKey } }
+        set { lock.withLock { _interactKey = newValue } }
+    }
+
+    // True from a real (interact) press until its release, even if the key is let go.
+    var interactPressing: Bool {
+        lock.withLock { _interactPress }
     }
 
     private var passingThrough = false // tap thread only
@@ -98,7 +114,10 @@ final class InputTap {
     }
 
     func setActive(_ value: Bool) {
-        lock.withLock { _active = value }
+        lock.withLock {
+            _active = value
+            _interactPress = false
+        }
         guard let tap = tap else {
             return
         }
@@ -139,6 +158,23 @@ final class InputTap {
         }
 
         guard active else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        let key = interactKey
+        switch type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            if !key.isEmpty && (event.flags.contains(key) || CGEventSource.flagsState(.hidSystemState).contains(key)) {
+                lock.withLock { _interactPress = true }
+            }
+        default:
+            break
+        }
+        if lock.withLock({ _interactPress }) {
+            event.flags.remove(key)
+            if type == .leftMouseUp || type == .rightMouseUp || type == .otherMouseUp {
+                lock.withLock { _interactPress = false }
+            }
             return Unmanaged.passUnretained(event)
         }
 

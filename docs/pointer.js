@@ -1,15 +1,15 @@
 // TinyHand in the browser: the toy pointer on a stick, held from below a "screen"
 // element, that follows the mouse, taps with a thock and draws ink that fades.
 // It mirrors the Mac app: the grip leans right of the cursor and follows lazily,
-// the stick stretches so the fingertip lands on the cursor, the shadow tucks in
-// while pressed, and a toolbar switches pointers. With no mouse (or on touch) it
-// plays a short scripted demo over elements marked data-target.
+// the stick stretches so the fingertip lands on the cursor, the hand shrinks a
+// little while pressed, and a toolbar switches pointers. With no mouse (or on touch) it
+// plays a short scripted demo over elements marked data-target, unless autoplay is off.
 //
 //   TinyHandDemo.mount(document.querySelector('.screen'), { base: '' })
 (function () {
   const HANDS = [
-    { id: 'lavender', name: 'Lavender toy', src: 'assets/hands/lavender.png', w: 250, h: 380, tip: [67.7, 19.9], wrist: [120.2, 363.2], stick: ['#e8eaed', '#a7acb2', '#6e737a'] },
-    { id: 'glove', name: 'Cursor glove', src: 'assets/hands/glove.png', w: 317, h: 380, tip: [137.5, 19.5], wrist: [175.7, 363.1], stick: ['#3a3a3e', '#121214', '#000000'], shadow: 0.5 },
+    { id: 'lavender', name: 'Lavender toy', src: 'assets/hands/lavender.png', w: 257, h: 380, tip: [95.2, 12.0], wrist: [127.6, 368.7], stick: ['#3a3a3e', '#121214', '#000000'] },
+    { id: 'glove', name: 'Cursor glove', src: 'assets/hands/glove.png', w: 254, h: 380, tip: [93.7, 12.3], wrist: [128.1, 368.3], stick: ['#3a3a3e', '#121214', '#000000'] },
     { id: 'coral', name: 'Coral vinyl', src: 'assets/hands/coral.png', w: 323, h: 380, tip: [106.4, 20.2], wrist: [157.1, 363.3], stick: ['#ffffff', '#e7e3df', '#c9c3bd'] },
     { id: 'plush', name: 'Plush', src: 'assets/hands/plush.png', w: 309, h: 380, tip: [112.0, 20.4], wrist: [146.2, 362.9], stick: ['#f1dcb6', '#d6b383', '#a9824f'] },
     { id: 'robot', name: 'Robot', src: 'assets/hands/robot.png', w: 350, h: 380, tip: [120.9, 20.3], wrist: [183.4, 363.3], stick: ['#e2e5e8', '#b6bbc1', '#7d838a'] },
@@ -175,7 +175,7 @@
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
     function onToolbar(e) {
-      return toolbar && toolbar.contains(e.target);
+      return (toolbar && toolbar.contains(e.target)) || Boolean(e.target.closest && e.target.closest('[data-pass]'));
     }
     stage.addEventListener('pointermove', e => {
       if (e.pointerType !== 'mouse') {
@@ -194,8 +194,10 @@
       }
       stage.classList.remove('th-live');
       release();
-      cursor = null;
       lastReal = 0;
+      if (opts.autoplay) {
+        cursor = null;
+      }
     });
     stage.addEventListener('pointerdown', e => {
       if (e.pointerType !== 'mouse' || onToolbar(e)) {
@@ -229,7 +231,7 @@
         if (Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
           return;
         }
-        current = { pts: [downAt], color: style === 'laser' ? RED : PURPLE, ended: 0 };
+        current = { pts: [downAt], color: style === 'laser' ? RED : (opts.ink || PURPLE), ended: 0 };
         strokes.push(current);
       }
       const last = current.pts[current.pts.length - 1];
@@ -343,10 +345,6 @@
         ctx.lineWidth = width;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(0,0,0,0.16)';
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1.5;
         ctx.beginPath();
         ctx.moveTo(p[0].x, p[0].y);
         for (let k = 1; k < p.length; k++) {
@@ -384,27 +382,20 @@
       if (!img.complete || !img.naturalWidth) {
         return;
       }
-      const handH = Math.max(64, Math.min(124, H * 0.19)) * (1 - 0.06 * pressAmount);
+      const handH = (opts.handH || Math.max(64, Math.min(124, H * 0.19))) * (1 - 0.06 * pressAmount);
       const s = handH / hand.h;
       const targetX = Math.min(Math.max(cursor.x + 0.18 * W, W * 0.15), W * 1.05);
       gripX = gripX == null ? targetX : gripX + (targetX - gripX) * Math.min(1, dt * 0.0096);
-      const grip = { x: gripX, y: H + H * 0.35 };
+      const grip = { x: gripX, y: H + Math.max(H * 0.35, W * (opts.depthW || 0)) };
       const aScr = Math.atan2(cursor.y - grip.y, cursor.x - grip.x);
       const aImg = Math.atan2(hand.tip[1] - hand.wrist[1], hand.tip[0] - hand.wrist[0]);
       const rot = aScr - aImg;
       const dx = (hand.wrist[0] - hand.tip[0]) * s, dy = (hand.wrist[1] - hand.tip[1]) * s;
       const wrist = { x: cursor.x + dx * Math.cos(rot) - dy * Math.sin(rot), y: cursor.y + dx * Math.sin(rot) + dy * Math.cos(rot) };
 
-      const lift = Math.max(6, H * 0.04) * (1 - 0.95 * pressAmount);
-      const strength = hand.shadow || 1;
-      ctx.save();
-      ctx.shadowColor = `rgba(0,0,0,${(0.26 + 0.16 * pressAmount) * strength})`;
-      ctx.shadowBlur = Math.max(1, lift * 0.7) + 4 * pressAmount;
-      ctx.shadowOffsetX = lift * 0.6;
-      ctx.shadowOffsetY = lift;
-
-      // The stick: a cylinder shaded across its width.
       const sw = Math.max(4, handH * 0.07);
+      // The stick: a cylinder shaded across its width.
+      ctx.save();
       const nx = -(wrist.y - grip.y), ny = wrist.x - grip.x;
       const nl = Math.hypot(nx, ny) || 1;
       const mx = (wrist.x + grip.x) / 2, my = (wrist.y + grip.y) / 2;
@@ -425,39 +416,68 @@
       ctx.rotate(rot);
       ctx.drawImage(img, -hand.tip[0] * s, -hand.tip[1] * s, hand.w * s, hand.h * s);
       ctx.restore();
+      return Math.abs(targetX - gripX) > 0.3;
+    }
+
+    // Only redraw while something is moving, and not at all while the stage is off screen.
+    let visible = true;
+    if (window.IntersectionObserver) {
+      new IntersectionObserver(entries => { visible = entries[entries.length - 1].isIntersecting; }).observe(stage);
+    }
+    let dirty = true;
+    ['pointermove', 'pointerdown', 'pointerleave'].forEach(t => stage.addEventListener(t, () => { dirty = true; }));
+    stage.addEventListener('th-style', () => { dirty = true; });
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => { dirty = true; }).observe(stage);
     }
 
     let last = performance.now();
     let lastFrame = 0;
-    function frame(now) {
-      lastFrame = performance.now();
-      const dt = Math.min(64, now - last);
+    function tick(now) {
+      const dt = Math.max(0, Math.min(64, now - last));
       last = now;
-      if (!held) {
-        pressAmount += (0 - pressAmount) * Math.min(1, dt * 0.022);
+      if (!visible || document.hidden) {
+        return;
       }
-      const auto = demoActive(now);
-      if (auto) {
+      let moving = false;
+      if (!held && pressAmount > 0.002) {
+        pressAmount += (0 - pressAmount) * Math.min(1, dt * 0.022);
+        moving = true;
+      }
+      if (demoActive(now)) {
         stepDemo(dt);
+        moving = true;
       } else if (demo.steps.length) {
         if (held && !lastReal) {
           release();
         }
         demo.steps = [];
       }
+      if (!moving && !dirty && !held && !strokes.length) {
+        return;
+      }
+      dirty = false;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
       drawInk(now);
-      if (cursor) {
-        if (style === 'laser') {
-          drawLaser();
-        } else {
-          drawHand(dt);
-        }
+      if (!cursor) {
+        return;
       }
+      if (style === 'laser') {
+        drawLaser();
+        return;
+      }
+      if (drawHand(dt)) {
+        dirty = true;
+      }
+    }
+    function frame(now) {
+      lastFrame = performance.now();
+      tick(now);
       requestAnimationFrame(frame);
     }
-    if (reduce) {
+    // Without the demo, the hand waits pointing at the first target until the mouse moves.
+    if (reduce || !opts.autoplay) {
       const t = targets().find(x => x.kind === 'point');
       cursor = t ? { x: t.x + t.w * 0.5, y: t.y + t.h * 0.55 } : { x: W * 0.5, y: H * 0.45 };
     }
@@ -465,30 +485,12 @@
     // Some environments never deliver animation frames (headless renders, some
     // embeds); keep drawing on a timer there. Real browsers stay on rAF.
     setInterval(() => {
-      if (!document.hidden && performance.now() - lastFrame > 250) {
-        const now = performance.now();
-        const dt = Math.min(64, now - last);
-        last = now;
-        if (!held) {
-          pressAmount += (0 - pressAmount) * Math.min(1, dt * 0.022);
-        }
-        if (demoActive(now)) {
-          stepDemo(dt);
-        }
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, W, H);
-        drawInk(now);
-        if (cursor) {
-          if (style === 'laser') {
-            drawLaser();
-          } else {
-            drawHand(dt);
-          }
-        }
+      if (performance.now() - lastFrame > 250) {
+        tick(performance.now());
       }
     }, 33);
 
-    return { setStyle, hands: HANDS };
+    return { setStyle, setInk: c => { opts.ink = c; }, hands: HANDS };
   }
 
   window.TinyHandDemo = { mount, hands: HANDS };

@@ -87,13 +87,17 @@ final class ArmView: NSView {
         }
     }
 
+    func updateInkColor() {
+        ink.color = Preferences.inkChoice.resolved(for: style)
+    }
+
     func setStyle(_ newStyle: PointerStyle) {
         style = newStyle
         asset = newStyle.assetName.flatMap(HandAsset.load)
         if newStyle != .laser && asset == nil {
             style = .laser // missing image: fall back to something that always works
         }
-        ink.color = style.inkColor
+        updateInkColor()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if let a = asset, style != .laser {
@@ -170,11 +174,11 @@ final class ArmView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        // Pressed, the shadow tucks right under the hand: small, tight and a bit darker.
+        // Pressed, the shadow moves in under the hand but stays soft and light.
         for sub in [rodLayer, handLayer] {
             sub.shadowOffset = shadowOffset
-            sub.shadowRadius = max(1, lift * 0.35) + 4 * pressAmount
-            sub.shadowOpacity = showShadow ? Float(0.26 + 0.16 * pressAmount) * style.shadowStrength : 0
+            sub.shadowRadius = max(1, lift * 0.35) + 5 * pressAmount
+            sub.shadowOpacity = showShadow ? Float(0.26 + 0.02 * pressAmount) : 0
         }
 
         rodLayer.bounds = CGRect(x: 0, y: 0, width: widthPts, height: rodLen)
@@ -192,7 +196,7 @@ final class ArmView: NSView {
     // How far the shadow falls: the pointer's height above the glass, a little
     // lower while pressed.
     private func currentLift(_ screenH: CGFloat) -> CGFloat {
-        liftFrac * screenH * (1 - 0.95 * pressAmount)
+        liftFrac * screenH * (1 - 0.8 * pressAmount)
     }
 
     // Pressing makes the dot a touch bigger and the glow brighter.

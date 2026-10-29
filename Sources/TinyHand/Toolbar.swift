@@ -1,7 +1,7 @@
 import AppKit
 
-// The floating bar at the bottom of the screen while the pointer is on: pick a
-// pointer, turn the tap sound on or off, or exit. It never takes focus from the app being
+// The floating bar at the bottom of the screen while the pointer is on: pick one of the
+// pinned pointers, turn the tap sound on or off, or exit. It never takes focus from the app being
 // demoed, and the overlay lets clicks through to it (see InputTap.passThroughRect).
 // It fades away while you work and comes back when the cursor heads toward it.
 final class Toolbar {
@@ -23,6 +23,11 @@ final class Toolbar {
     private let panel: Panel
     private let stack = NSStackView()
     private var styleButtons: [PointerStyle: Button] = [:]
+    private var shownStyles: [PointerStyle] = []
+    private var current: PointerStyle?
+    private var inkButton: Button?
+    private var swatches: [InkChoice: Button] = [:]
+    private var inkOpen = false
     private let permissionButton = Button()
     private var soundButton: Button?
     private(set) var revealed = false
@@ -62,15 +67,12 @@ final class Toolbar {
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
 
-        for style in PointerStyle.allCases {
-            let b = makeButton(image: Toolbar.icon(for: style), tip: style.title) { [weak self] in
-                self?.onPick?(style)
-            }
-            styleButtons[style] = b
-            stack.addArrangedSubview(b)
-        }
-
         stack.addArrangedSubview(Toolbar.divider())
+        let ink = makeButton(image: nil, tip: "Ink colour") { [weak self] in
+            self?.toggleInk()
+        }
+        inkButton = ink
+        stack.addArrangedSubview(ink)
         let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Tap sound") { [weak self] in
             self?.onToggleSound?()
         }
@@ -99,8 +101,102 @@ final class Toolbar {
         permissionButton.isHidden = true
         stack.addArrangedSubview(permissionButton)
 
+        rebuildStyles()
         background.removeFocusRings()
         resize()
+        refreshInk()
+        NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
+            self?.rebuildStyles()
+            self?.refreshInk()
+        }
+    }
+
+    // The ink button shows the colour strokes will be drawn in. Clicking it slides out a
+    // short row of colours next to it; picking one closes the row again.
+    private func toggleInk() {
+        setInkOpen(!inkOpen)
+    }
+
+    private func setInkOpen(_ open: Bool) {
+        guard open != inkOpen, let ink = inkButton else {
+            return
+        }
+        inkOpen = open
+        if open {
+            var index = (stack.arrangedSubviews.firstIndex(of: ink) ?? 0) + 1
+            for choice in InkChoice.allCases {
+                let b = makeButton(image: nil, tip: choice.title) { [weak self] in
+                    Preferences.inkChoice = choice
+                    self?.setInkOpen(false)
+                }
+                swatches[choice] = b
+                stack.insertArrangedSubview(b, at: index)
+                index += 1
+            }
+        } else {
+            for b in swatches.values {
+                actions[b] = nil
+                b.removeFromSuperview()
+            }
+            swatches = [:]
+        }
+        refreshInk()
+        resizeKeepingCenter()
+    }
+
+    private func refreshInk() {
+        guard let ink = inkButton else {
+            return
+        }
+        let style = current ?? PointerStyle.saved
+        ink.image = Toolbar.inkDot(Preferences.inkChoice.resolved(for: style))
+        ink.layer?.backgroundColor = inkOpen ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
+        let hidden = !Preferences.showInkButton
+        if ink.isHidden != hidden {
+            ink.isHidden = hidden
+            if hidden {
+                setInkOpen(false)
+            }
+            resizeKeepingCenter()
+        }
+        for (choice, b) in swatches {
+            b.image = choice == .match ? Toolbar.icon(for: style) : Toolbar.inkDot(choice.color ?? style.inkColor)
+            b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
+        }
+    }
+
+    private func resizeKeepingCenter() {
+        let center = CGPoint(x: panel.frame.midX, y: panel.frame.minY)
+        resize()
+        panel.setFrameOrigin(CGPoint(x: center.x - panel.frame.width / 2, y: center.y))
+    }
+
+    // The pinned pointers, plus the one in use if it isn't pinned.
+    private func rebuildStyles() {
+        var styles = Preferences.pinnedStyles
+        if let c = current, !styles.contains(c) {
+            styles.append(c)
+        }
+        if styles == shownStyles {
+            return
+        }
+        shownStyles = styles
+        for b in styleButtons.values {
+            actions[b] = nil
+            b.removeFromSuperview()
+        }
+        styleButtons = [:]
+        for (i, style) in styles.enumerated() {
+            let b = makeButton(image: Toolbar.icon(for: style), tip: style.title) { [weak self] in
+                self?.onPick?(style)
+            }
+            styleButtons[style] = b
+            stack.insertArrangedSubview(b, at: i)
+        }
+        if let c = current {
+            highlight(c)
+        }
+        resizeKeepingCenter()
     }
 
     func setSoundOn(_ on: Bool) {
@@ -137,6 +233,13 @@ final class Toolbar {
     }
 
     func select(_ style: PointerStyle) {
+        current = style
+        rebuildStyles()
+        highlight(style)
+        refreshInk()
+    }
+
+    private func highlight(_ style: PointerStyle) {
         for (s, b) in styleButtons {
             b.layer?.backgroundColor = s == style ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
         }
@@ -164,6 +267,7 @@ final class Toolbar {
     }
 
     func hide() {
+        setInkOpen(false)
         revealed = false
         panel.alphaValue = 0
         panel.orderOut(nil)
@@ -224,6 +328,21 @@ final class Toolbar {
         onFixPermission?()
     }
 
+    // A round swatch of an ink colour with a soft rim and highlight.
+    private static func inkDot(_ color: CGColor) -> NSImage {
+        NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            let c = CGPoint(x: rect.midX, y: rect.midY)
+            let r: CGFloat = 13
+            NSColor(white: 0, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
+            (NSColor(cgColor: color) ?? .white).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
+            NSColor(white: 1, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
+            return true
+        }
+    }
+
     private static func divider() -> NSView {
         let v = NSView()
         v.wantsLayer = true
@@ -233,9 +352,9 @@ final class Toolbar {
         return v
     }
 
-    private static func icon(for style: PointerStyle) -> NSImage? {
+    static func icon(for style: PointerStyle) -> NSImage? {
         if let name = style.assetName {
-            return HandAsset.load(name)?.thumbnail
+            return HandAsset.thumbnail(name)
         }
         // The laser: a red dot with a soft glow and a hot centre.
         return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in

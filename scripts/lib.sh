@@ -40,10 +40,8 @@ make_bundle() {
     rm -rf "$app"
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$APP_NAME"
-    for name in lavender glove coral plush robot; do
-        cp "$ROOT/assets/hand_$name.png" "$app/Contents/Resources/"
-    done
-    cp "$ROOT/assets/tap.wav" "$ROOT/assets/AppIcon.icns" "$app/Contents/Resources/"
+    cp "$ROOT"/assets/hand_*.png "$app/Contents/Resources/"
+    cp "$ROOT/assets/tap.wav" "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
     cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
 
     # Sparkle (auto-updates), from the universal xcframework SwiftPM downloaded.
@@ -66,6 +64,8 @@ make_bundle() {
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>

@@ -35,7 +35,10 @@ if let idx = CommandLine.arguments.firstIndex(of: "--toolbar-test") {
 if let idx = CommandLine.arguments.firstIndex(of: "--settings-test") {
     _ = NSApplication.shared
     let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/settings.png"
-    if let data = SettingsWindow().snapshot()?.representation(using: .png, properties: [:]) {
+    let section = CommandLine.arguments.count > idx + 2 ? SettingsSection(rawValue: CommandLine.arguments[idx + 2]) ?? .general : .general
+    let dark = ProcessInfo.processInfo.environment["TH_DARK"] != nil
+    if let image = SettingsWindow().snapshot(section, dark: dark),
+       let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
         try? data.write(to: URL(fileURLWithPath: out))
         print("rendered \(out)")
     }

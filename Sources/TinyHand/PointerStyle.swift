@@ -1,7 +1,8 @@
 import AppKit
 
-// The pointers the user can pick from the toolbar: a few toy hands on sticks, and
-// a small red laser dot. Each hand is one vertical image (hand on top, stick below); its
+// The pointers the user can pick from: toy hands on sticks in many materials, and
+// a small red laser dot. The toolbar shows the pinned ones (Preferences.pinnedStyles).
+// Each hand is one vertical image (hand on top, stick below); its
 // fingertip, wrist and rod are found from the image's alpha when it loads, so a new
 // hand only needs a new PNG.
 enum PointerStyle: String, CaseIterable {
@@ -10,7 +11,37 @@ enum PointerStyle: String, CaseIterable {
     case coral
     case plush
     case robot
+    case pink
+    case blue
+    case mint
+    case lemon
+    case black
+    case chrome
+    case holo
+    case fuzzy
+    case wood
+    case marble
+    case terrazzo
+    case glass
+    case jelly
+    case pastel
+    case pixel
+    case lowpoly
+    case knit
+    case skeleton
+    case astro
+    case space
+    case monster
+    case water
+    case lava
+    case grass
+    case cactus
+    case choco
+    case cloud
     case laser
+
+    // The ones in the toolbar until the user pins others in Settings.
+    static let defaultPinned: [PointerStyle] = [.lavender, .glove, .coral, .plush, .robot, .laser]
 
     var title: String {
         switch self {
@@ -19,6 +50,33 @@ enum PointerStyle: String, CaseIterable {
         case .coral: return "Coral vinyl"
         case .plush: return "Plush"
         case .robot: return "Robot"
+        case .pink: return "Bubblegum"
+        case .blue: return "Sky"
+        case .mint: return "Mint"
+        case .lemon: return "Lemon"
+        case .black: return "Midnight"
+        case .chrome: return "Chrome"
+        case .holo: return "Holo"
+        case .fuzzy: return "Fuzzy"
+        case .wood: return "Wood"
+        case .marble: return "Marble"
+        case .terrazzo: return "Terrazzo"
+        case .glass: return "Glass"
+        case .jelly: return "Jelly"
+        case .pastel: return "Pastel"
+        case .pixel: return "Pixel"
+        case .lowpoly: return "Low poly"
+        case .knit: return "Knit"
+        case .skeleton: return "Skeleton"
+        case .astro: return "Astronaut"
+        case .space: return "Space"
+        case .monster: return "Monster"
+        case .water: return "Water"
+        case .lava: return "Lava"
+        case .grass: return "Grass"
+        case .cactus: return "Cactus"
+        case .choco: return "Chocolate"
+        case .cloud: return "Cloud"
         case .laser: return "Laser dot"
         }
     }
@@ -30,14 +88,23 @@ enum PointerStyle: String, CaseIterable {
         }
     }
 
-    // The bright glove with its thick black outline reads as a much heavier shadow
-    // than the soft-coloured toys, so it gets a lighter one.
-    var shadowStrength: Float {
-        self == .glove ? 0.5 : 1
-    }
-
+    // Each pointer draws in a colour that goes with it, unless the user picks one.
     var inkColor: CGColor {
-        self == .laser ? Ink.red : Ink.purple
+        switch self {
+        case .laser, .coral, .space: return Ink.red
+        case .lavender, .glove, .holo, .fuzzy, .lowpoly, .knit: return Ink.purple
+        case .plush, .blue, .astro, .cloud: return Ink.hex(0x2F86F0)
+        case .robot, .mint: return Ink.hex(0x16A87A)
+        case .pink, .pastel: return Ink.hex(0xEE4F98)
+        case .lemon: return Ink.hex(0xF2B705)
+        case .black, .pixel: return Ink.hex(0x1D1D21)
+        case .chrome, .marble: return Ink.hex(0x6B7380)
+        case .wood, .skeleton, .choco: return Ink.hex(0x9A5E2C)
+        case .terrazzo, .lava: return Ink.hex(0xF0561D)
+        case .glass, .water: return Ink.hex(0x1597E5)
+        case .jelly: return Ink.hex(0xA33FE6)
+        case .monster, .grass, .cactus: return Ink.hex(0x3E9E2E)
+        }
     }
 
     private static let defaultsKey = "pointerStyle"
@@ -84,7 +151,52 @@ struct HandAsset {
         return asset
     }
 
-    // A square crop hugging the hand, for toolbar buttons.
+    private static var thumbnails: [String: NSImage] = [:]
+
+    // Main thread only. Nil until built, e.g. by preloadThumbnails.
+    static func cachedThumbnail(_ name: String) -> NSImage? {
+        thumbnails[name]
+    }
+
+    // Builds the missing thumbnails off the main thread (each needs its full image
+    // decoded and measured), then stores them on the main thread and calls done.
+    static func preloadThumbnails(_ names: [String], done: (() -> Void)? = nil) {
+        let missing = names.filter { thumbnails[$0] == nil }
+        guard !missing.isEmpty else {
+            done?()
+            return
+        }
+        DispatchQueue.global(qos: .utility).async {
+            var built: [(String, NSImage)] = []
+            for name in missing {
+                if let thumb = loadImage(name).flatMap(measure)?.thumbnail {
+                    built.append((name, thumb))
+                }
+            }
+            DispatchQueue.main.async {
+                for (name, thumb) in built where thumbnails[name] == nil {
+                    thumbnails[name] = thumb
+                }
+                done?()
+            }
+        }
+    }
+
+    // A hand's thumbnail without keeping its full image in memory, for the Pointers window.
+    static func thumbnail(_ name: String) -> NSImage? {
+        if let hit = thumbnails[name] {
+            return hit
+        }
+        let asset = cache[name] ?? loadImage(name).flatMap(measure)
+        guard let thumb = asset?.thumbnail else {
+            return nil
+        }
+        thumbnails[name] = thumb
+        return thumb
+    }
+
+    // A square crop hugging the hand, for toolbar buttons, redrawn small so it doesn't
+    // hold on to the full image.
     var thumbnail: NSImage {
         let h = CGFloat(image.height)
         let w = CGFloat(image.width)
@@ -96,7 +208,18 @@ struct HandAsset {
         let rect = CGRect(x: cx - side / 2, y: cy - side / 2, width: side, height: side)
             .intersection(CGRect(x: 0, y: 0, width: w, height: h))
         let cropped = image.cropping(to: rect) ?? image
-        return NSImage(cgImage: cropped, size: NSSize(width: 64, height: 64))
+        let px = 128
+        guard let ctx = CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return NSImage(cgImage: cropped, size: NSSize(width: 64, height: 64))
+        }
+        ctx.interpolationQuality = .high
+        ctx.draw(cropped, in: CGRect(x: 0, y: 0, width: px, height: px))
+        guard let small = ctx.makeImage() else {
+            return NSImage(cgImage: cropped, size: NSSize(width: 64, height: 64))
+        }
+        return NSImage(cgImage: small, size: NSSize(width: 64, height: 64))
     }
 
     private static func measure(_ image: CGImage) -> HandAsset? {
