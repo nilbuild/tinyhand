@@ -28,7 +28,7 @@ While the pointer is on, a small toolbar at the bottom of the screen lets you pi
 hand or a laser dot, mute the tap sound, or exit. It fades away while you record.
 
 Settings let you change the shortcuts, pointer size, shadow, how long drawings stay,
-tap sound, and whether TinyHand opens when you log in.
+tap sound, and whether TinyHand opens when you log in. TinyHand updates itself.
 
 ## Build
 

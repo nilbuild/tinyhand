@@ -3,8 +3,13 @@
 
 APP_NAME="TinyHand"
 BUNDLE_ID="com.kamranahmed.tinyhand"
+REPO="nilbuild/tinyhand"
+FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
+SPARKLE_PUBLIC_KEY="FWubybHeS/qieOQ9ITnuaIcIpFXz/TPEWPLA7P2C5Yw="
+SPARKLE_VERSION="2.10.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+# CI sets TINYHAND_VERSION from the git tag; locally it comes from ./VERSION.
+VERSION="${TINYHAND_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
 
 # Never swap the binary under a running copy: macOS can then treat that process as
 # untrusted, and its Accessibility permission stops working.
@@ -18,9 +23,20 @@ quit_running_app() {
     fi
 }
 
-# make_bundle <binary> <app path> <build number>
+# make_bundle <binary> <app path> <build number> [--with-updates]
+# Only release builds get the update feed: a dev build (build number 0) would
+# otherwise offer to replace itself with every published release.
 make_bundle() {
-    local binary="$1" app="$2" build="$3"
+    local binary="$1" app="$2" build="$3" updates="${4:-}"
+    local update_keys=""
+    if [[ "$updates" == "--with-updates" ]]; then
+        update_keys="    <key>SUFeedURL</key>
+    <string>$FEED_URL</string>
+    <key>SUPublicEDKey</key>
+    <string>$SPARKLE_PUBLIC_KEY</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>"
+    fi
     rm -rf "$app"
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$APP_NAME"
@@ -29,6 +45,12 @@ make_bundle() {
     done
     cp "$ROOT/assets/tap.wav" "$ROOT/assets/AppIcon.icns" "$app/Contents/Resources/"
     cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
+
+    # Sparkle (auto-updates), from the universal xcframework SwiftPM downloaded.
+    local fw
+    fw="$(find "$ROOT/.build/artifacts" -path "*macos-arm64_x86_64/Sparkle.framework" -maxdepth 6 | head -1)"
+    mkdir -p "$app/Contents/Frameworks"
+    ditto "$fw" "$app/Contents/Frameworks/Sparkle.framework"
 
     cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -59,7 +81,35 @@ make_bundle() {
     <string>public.app-category.productivity</string>
     <key>NSHumanReadableCopyright</key>
     <string>© $(date +%Y) Kamran Ahmed</string>
+$update_keys
 </dict>
 </plist>
 PLIST
+}
+
+# sign_app <app path> <identity> [--timestamp]
+# Inside-out, as Sparkle documents: its helpers, the framework, then the app.
+sign_app() {
+    local app="$1" identity="$2" ts="${3:-}"
+    local fw="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
+    local sign=(codesign --force --options runtime --sign "$identity")
+    [[ -n "$ts" ]] && sign+=(--timestamp)
+    "${sign[@]}" "$fw/XPCServices/Installer.xpc"
+    "${sign[@]}" --preserve-metadata=entitlements "$fw/XPCServices/Downloader.xpc"
+    "${sign[@]}" "$fw/Autoupdate"
+    "${sign[@]}" "$fw/Updater.app"
+    "${sign[@]}" "$app/Contents/Frameworks/Sparkle.framework"
+    "${sign[@]}" "$app"
+    codesign --verify --deep --strict "$app"
+}
+
+# Sparkle's command line tools (sign_update), downloaded once into .build.
+sparkle_tools() {
+    local dir="$ROOT/.build/sparkle-tools-$SPARKLE_VERSION"
+    if [[ ! -x "$dir/bin/sign_update" ]]; then
+        mkdir -p "$dir"
+        curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" \
+            | tar -xJ -C "$dir"
+    fi
+    echo "$dir/bin"
 }

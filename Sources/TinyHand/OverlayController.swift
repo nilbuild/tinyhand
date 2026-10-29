@@ -48,7 +48,8 @@ final class OverlayController {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
-        window.level = .screenSaver
+        // Above the toolbar, so the hand is drawn over it while pointing at its buttons.
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
         armView = ArmView(frame: NSRect(origin: .zero, size: frame.size))
@@ -293,16 +294,17 @@ final class OverlayController {
         }
         let menuBar = OverlayController.menuBarRect(screen)
         let cgMouse = OverlayController.cgPoint(mouse)
-        let overToolbar = toolbar.revealed && f.contains(mouse)
         let overMenu = menuBar.contains(mouse) || menuRects.contains { $0.contains(cgMouse) }
             || Date() < menuOpeningUntil
-        let normal = !drawing && (overToolbar || overMenu || ownMenuOpen)
+        // The toolbar keeps the hand (its clicks still pass through to the buttons);
+        // only menus and the menu bar bring the real cursor back.
+        let normal = !drawing && (overMenu || ownMenuOpen)
         // Esc belongs to an open menu (to close it), not to us.
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            Log.write(normal ? "real cursor (\(overToolbar ? "toolbar" : menuBar.contains(mouse) ? "menu bar" : "menu")) \(at)" : "pointer back \(at)")
+            Log.write(normal ? "real cursor (\(menuBar.contains(mouse) ? "menu bar" : "menu")) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
             if normal {

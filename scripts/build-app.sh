@@ -13,6 +13,5 @@ APP="dist/$APP_NAME.app"
 make_bundle .build/release/$APP_NAME "$APP" "0"
 
 IDENTITY="${CODESIGN_IDENTITY:-Apple Development}"
-codesign --force --options runtime --sign "$IDENTITY" "$APP"
-codesign --verify --strict "$APP"
+sign_app "$APP" "$IDENTITY"
 echo "Built $APP $VERSION (signed with: $IDENTITY)"

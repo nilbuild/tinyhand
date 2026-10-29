@@ -139,8 +139,7 @@ final class Toolbar {
 
     func select(_ style: PointerStyle) {
         for (s, b) in styleButtons {
-            b.layer?.borderWidth = s == style ? 2 : 0
-            b.layer?.backgroundColor = s == style ? NSColor(white: 1, alpha: 0.14).cgColor : NSColor.clear.cgColor
+            b.layer?.backgroundColor = s == style ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
         }
     }
 
@@ -199,7 +198,6 @@ final class Toolbar {
         b.setAccessibilityLabel(tip)
         b.wantsLayer = true
         b.layer?.cornerRadius = 10
-        b.layer?.borderColor = NSColor(srgbRed: 0.72, green: 0.6, blue: 1, alpha: 1).cgColor
         if let image = image {
             b.image = image
         }

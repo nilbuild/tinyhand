@@ -5,7 +5,8 @@
 #   ./scripts/release.sh                # version from ./VERSION
 #   ./scripts/release.sh --skip-notarize
 #
-# Notarization uses the "notarytool-profile" keychain profile. Create it once with:
+# Notarization uses APPLE_ID / APPLE_PASSWORD (app-specific) / APPLE_TEAM_ID when set
+# (as in CI), otherwise the "notarytool-profile" keychain profile. Create that once with:
 #   xcrun notarytool store-credentials notarytool-profile \
 #     --apple-id <apple id> --team-id 6QG84AK9XP
 set -euo pipefail
@@ -23,7 +24,12 @@ DMG="$OUT/$APP_NAME-$VERSION.dmg"
 BUILD_NUMBER="$(date +%Y%m%d%H%M)"
 
 notarize() {
-    xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait --timeout 30m
+    if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+        xcrun notarytool submit "$1" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait --timeout 30m
+    else
+        xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait --timeout 30m
+    fi
     xcrun stapler staple "$2"
     xcrun stapler validate "$2"
 }
@@ -32,12 +38,11 @@ echo "==> Building $APP_NAME $VERSION (universal)"
 swift build -c release --arch arm64 --arch x86_64
 rm -rf "$OUT"
 mkdir -p "$OUT"
-make_bundle .build/apple/Products/Release/$APP_NAME "$APP" "$BUILD_NUMBER"
+make_bundle .build/apple/Products/Release/$APP_NAME "$APP" "$BUILD_NUMBER" --with-updates
 lipo -info "$APP/Contents/MacOS/$APP_NAME"
 
 echo "==> Signing with $IDENTITY"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
-codesign --verify --strict --verbose=2 "$APP"
+sign_app "$APP" "$IDENTITY" --timestamp
 
 if [[ "$SKIP_NOTARIZE" == false ]]; then
     echo "==> Notarizing the app"
@@ -70,6 +75,35 @@ if [[ "$SKIP_NOTARIZE" == false ]]; then
     spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
     spctl --assess --type execute --verbose=2 "$APP"
 fi
+
+echo "==> Signing the update and writing appcast.xml"
+# Sparkle checks this EdDSA signature before installing an update. The key comes
+# from SPARKLE_PRIVATE_KEY (CI) or the login keychain (account "tinyhand").
+TOOLS="$(sparkle_tools)"
+if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
+    ENCLOSURE="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/sign_update" --ed-key-file - "$DMG")"
+else
+    ENCLOSURE="$("$TOOLS/sign_update" --account tinyhand "$DMG")"
+fi
+NOTES_HTML="$(printf '%s' "${RELEASE_NOTES:-TinyHand $VERSION}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | sed -e 's/$/<br>/')"
+cat > "$OUT/appcast.xml" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>$APP_NAME</title>
+    <item>
+      <title>$APP_NAME $VERSION</title>
+      <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+      <sparkle:version>$BUILD_NUMBER</sparkle:version>
+      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[$NOTES_HTML]]></description>
+      <enclosure url="https://github.com/$REPO/releases/download/v$VERSION/$APP_NAME-$VERSION.dmg"
+                 type="application/octet-stream" $ENCLOSURE />
+    </item>
+  </channel>
+</rss>
+XML
 
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 echo

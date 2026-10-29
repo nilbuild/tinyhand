@@ -9,6 +9,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applyClearShortcut: ((Shortcut) -> Bool)?
     // Global shortcuts are paused while recording, so the combo being typed isn't run.
     var onRecording: ((Bool) -> Void)?
+    // Set when the app can update itself; adds the automatic-check option.
+    var updater: Updater?
 
     private var window: NSWindow?
     private let message = NSTextField(labelWithString: "")
@@ -18,6 +20,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     private var laserSoundCheckbox: NSButton?
     private var sizeSlider: NSSlider?
     private var shadowCheckbox: NSButton?
+    private var updatesCheckbox: NSButton?
 
     private static let fadeChoices: [(String, Double)] = [
         ("Fade after 3 seconds", 3),
@@ -101,6 +104,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 
         let login = NSButton(checkboxWithTitle: "Open TinyHand when you log in", target: self, action: #selector(loginChanged(_:)))
         loginCheckbox = login
+        let updates = NSButton(checkboxWithTitle: "Check for updates automatically", target: self, action: #selector(updatesChanged(_:)))
+        updatesCheckbox = updates
 
         let grid = NSGridView(views: [
             [label("Turn pointer on/off:"), toggle],
@@ -110,6 +115,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             [label("Drawings:"), fade],
             [label("Tap sound:"), sounds],
             [NSGridCell.emptyContentView, login],
+            [NSGridCell.emptyContentView, updates],
         ])
         grid.rowSpacing = 14
         grid.columnSpacing = 12
@@ -161,6 +167,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         handSoundCheckbox?.state = Preferences.handSound ? .on : .off
         laserSoundCheckbox?.state = Preferences.laserSound ? .on : .off
         loginCheckbox?.state = Preferences.launchAtLogin ? .on : .off
+        updatesCheckbox?.isHidden = updater == nil
+        updatesCheckbox?.state = updater?.automaticallyChecks == true ? .on : .off
     }
 
     private func apply(_ s: Shortcut, _ recorder: ShortcutRecorder, _ handler: ((Shortcut) -> Bool)?) -> Bool {
@@ -197,6 +205,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         if sender === laserSoundCheckbox {
             Preferences.laserSound = sender.state == .on
         }
+    }
+
+    @objc private func updatesChanged(_ sender: NSButton) {
+        updater?.automaticallyChecks = sender.state == .on
     }
 
     @objc private func loginChanged(_ sender: NSButton) {
