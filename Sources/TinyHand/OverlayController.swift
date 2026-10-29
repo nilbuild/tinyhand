@@ -36,6 +36,8 @@ final class OverlayController {
     private var lastPermissionCheck = Date.distantPast
 
     private(set) var isActive = false
+    // Keeps macOS from napping or throttling TinyHand while the pointer is on.
+    private var activity: NSObjectProtocol?
     var onActiveChanged: (() -> Void)?
     // The toolbar's "Allow clicks & drawing" button: show the permission guide.
     var onNeedsPermission: (() -> Void)?
@@ -170,6 +172,12 @@ final class OverlayController {
 
     var style: PointerStyle { armView.style }
 
+    var tapMaxWaitMs: Double { inputTap.maxWaitMs }
+
+    func resetTapWait() {
+        inputTap.resetWait()
+    }
+
     func toolbarButtonCenter(_ style: PointerStyle) -> CGPoint? {
         toolbar.center(of: style)
     }
@@ -236,6 +244,8 @@ final class OverlayController {
         RunLoop.main.add(t, forMode: .common)
         timer = t
 
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
         let installed = inputTap.install()
         inputTap.setActive(installed)
         Log.write("activate trusted=\(AXIsProcessTrusted()) tapInstalled=\(installed)")
@@ -260,6 +270,10 @@ final class OverlayController {
         timer?.invalidate()
         timer = nil
         inputTap.setActive(false)
+        if let a = activity {
+            ProcessInfo.processInfo.endActivity(a)
+            activity = nil
+        }
         armView.held = false
         downPoint = nil
         armView.ink.clear()

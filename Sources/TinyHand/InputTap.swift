@@ -5,22 +5,40 @@ import AppKit
 // underneath. It reports down/up (sound + tap animation) and left drags (ink).
 // Mouse *moves* are left alone, so the hand still follows the pointer.
 //
+// macOS holds back ALL mouse input until a tap's callback returns, so the tap runs
+// on its own thread: a busy or stalled main thread can never freeze clicks system
+// wide. The callback only decides; the work (sound, ink) runs on the main thread.
+//
 // Requires Accessibility permission (an active tap that can drop events).
 final class InputTap {
     var onMouseDown: (() -> Void)?
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
+    // A press that went through for real (e.g. opening a menu), with its location.
+    var onPassThroughPress: ((CGPoint) -> Void)?
+
+    // Shared with the tap thread.
+    private let lock = NSLock()
+    private var _active = false
+    private var _passThroughRects: [CGRect] = []
+
     // Presses that start in these rects (CG global coords, top-left origin) reach
     // the app underneath for real: our toolbar and menu bar icon. Follow-up drags
     // and the release go the same way as the press that started them.
-    var passThroughRects: [CGRect] = []
-    // A press that went through for real (e.g. opening a menu), with its location.
-    var onPassThroughPress: ((CGPoint) -> Void)?
-    private var passingThrough = false
+    var passThroughRects: [CGRect] {
+        get { lock.withLock { _passThroughRects } }
+        set { lock.withLock { _passThroughRects = newValue } }
+    }
 
+    private var active: Bool {
+        lock.withLock { _active }
+    }
+
+    private var passingThrough = false // tap thread only
+    // Longest wait (ms) between an event being created and reaching this tap, for tests.
+    private(set) var maxWaitMs: Double = 0
     private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
-    private var active = false
+    private var thread: Thread?
 
     // true once the tap is installed; false if Accessibility was denied.
     private(set) var isInstalled = false
@@ -59,18 +77,28 @@ final class InputTap {
         ) else {
             return false
         }
+        CGEvent.tapEnable(tap: tap, enable: false)
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        let ready = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            ready.signal()
+            CFRunLoopRun()
+        }
+        thread.name = "TinyHand event tap"
+        thread.qualityOfService = .userInteractive
+        thread.start()
+        ready.wait()
 
         self.tap = tap
-        self.source = source
+        self.thread = thread
         isInstalled = true
         return true
     }
 
     func setActive(_ value: Bool) {
-        active = value
+        lock.withLock { _active = value }
         guard let tap = tap else {
             return
         }
@@ -83,13 +111,27 @@ final class InputTap {
             return
         }
         let was = active
-        active = true
+        lock.withLock { _active = true }
         _ = handle(type: type, event: event)
-        active = was
+        lock.withLock { _active = was }
     }
 
+    func resetWait() {
+        maxWaitMs = 0
+    }
+
+    // Runs on the tap thread. Decide and return at once.
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if event.timestamp > 0 {
+            let wait = Double(DispatchTime.now().uptimeNanoseconds &- event.timestamp) / 1_000_000
+            if wait < 600_000 {
+                maxWaitMs = max(maxWaitMs, wait)
+            }
+        }
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if type == .tapDisabledByTimeout {
+                Log.write("event tap was disabled by a timeout; re-enabled")
+            }
             if let tap = tap {
                 CGEvent.tapEnable(tap: tap, enable: active)
             }
@@ -100,9 +142,6 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         }
 
-        // Decide and return at once: macOS holds back ALL mouse input until this
-        // callback returns, and disables the tap if it's slow. The work (sound, ink)
-        // runs right after, on the next turn of the main run loop.
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             passingThrough = passThroughRects.contains { $0.contains(event.location) }

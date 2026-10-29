@@ -123,6 +123,31 @@ enum E2ETest {
         print("style after clicking the toolbar's laser button:", overlay.style.rawValue)
         print("clicks that leaked to the catcher window:", catcherView.clicks)
 
+        // A stalled main thread must not hold up clicks: freeze it for 2 s while
+        // another thread clicks, then read macOS's own latency numbers for our tap.
+        let clickPoint = start
+        overlay.resetTapWait()
+        Thread.detachNewThread {
+            for _ in 0..<3 {
+                usleep(400_000)
+                post(.leftMouseDown, clickPoint)
+                usleep(30_000)
+                post(.leftMouseUp, clickPoint)
+            }
+        }
+        Thread.sleep(forTimeInterval: 2)
+        pump(0.3)
+        var count: UInt32 = 0
+        CGGetEventTapList(0, nil, &count)
+        var taps = [CGEventTapInformation](repeating: CGEventTapInformation(), count: Int(count))
+        CGGetEventTapList(count, &taps, &count)
+        if let mine = taps.first(where: { $0.tappingProcess == getpid() && $0.enabled }) {
+            print(String(format: "tap latency while the main thread was frozen: avg %.1f ms, max %.1f ms",
+                         mine.avgUsecLatency / 1000, mine.maxUsecLatency / 1000))
+        }
+        print(String(format: "longest a click waited to reach the tap during the stall: %.1f ms", overlay.tapMaxWaitMs))
+        print("clicks that leaked during the stall:", catcherView.clicks)
+
         // Esc exits pointer mode.
         for down in [true, false] {
             CGEvent(keyboardEventSource: source, virtualKey: 0x35, keyDown: down)?.post(tap: .cghidEventTap)

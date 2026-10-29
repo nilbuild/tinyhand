@@ -92,16 +92,36 @@ enum CursorHider {
 
 // Where the Dock's icons are, from the Dock's accessibility tree (works with an
 // auto-hiding Dock too). CG global coords; refreshed at most once a second.
+//
+// Asking another app over Accessibility is a blocking call that can take seconds if
+// that app is busy, so the read happens on a background queue with a short timeout
+// and the main thread only ever looks at the last known frame.
 enum DockArea {
+    private static let lock = NSLock()
     private static var frame: CGRect = .null
     private static var lastRead = Date.distantPast
+    private static var reading = false
+    private static let queue = DispatchQueue(label: "TinyHand.dock-area", qos: .utility)
 
     static func contains(_ cgPoint: CGPoint) -> Bool {
-        if Date().timeIntervalSince(lastRead) > 1 {
-            lastRead = Date()
-            frame = read()
+        let (known, refresh) = lock.withLock { () -> (CGRect, Bool) in
+            let due = !reading && Date().timeIntervalSince(lastRead) > 1
+            if due {
+                reading = true
+                lastRead = Date()
+            }
+            return (frame, due)
         }
-        return frame.insetBy(dx: -8, dy: -8).contains(cgPoint)
+        if refresh {
+            queue.async {
+                let fresh = read()
+                lock.withLock {
+                    frame = fresh
+                    reading = false
+                }
+            }
+        }
+        return known.insetBy(dx: -8, dy: -8).contains(cgPoint)
     }
 
     private static func read() -> CGRect {
@@ -109,6 +129,7 @@ enum DockArea {
             return .null
         }
         let app = AXUIElementCreateApplication(dock.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
         var children: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXChildrenAttribute as CFString, &children) == .success,
               let list = (children as? [AXUIElement])?.first else {
