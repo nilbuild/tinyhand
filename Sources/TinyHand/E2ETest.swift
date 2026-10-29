@@ -8,8 +8,12 @@ import AppKit
 enum E2ETest {
     private final class CatcherView: NSView {
         var clicks = 0
+        var scrolls = 0
         override func mouseDown(with event: NSEvent) {
             clicks += 1
+        }
+        override func scrollWheel(with event: NSEvent) {
+            scrolls += 1
         }
         override func draw(_ dirtyRect: NSRect) {
             NSColor(white: 0.95, alpha: 1).setFill()
@@ -85,6 +89,15 @@ enum E2ETest {
         post(.leftMouseUp, CGPoint(x: start.x + 240, y: start.y))
         pump(0.2)
         state("released", overlay)
+
+        // Scrolling right after drawing must reach the app underneath.
+        for _ in 0..<5 {
+            CGEvent(scrollWheelEvent2Source: source, units: .line, wheelCount: 1, wheel1: -2, wheel2: 0, wheel3: 0)?
+                .post(tap: .cghidEventTap)
+            pump(0.03)
+        }
+        pump(0.1)
+        print("scroll ticks right after drawing that reached the app (of 5):", catcherView.scrolls)
 
         // A plain click: should tap, leave no ink, and never reach the catcher.
         let before = overlay.inkStrokes
