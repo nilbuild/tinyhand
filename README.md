@@ -33,12 +33,6 @@ Open `TinyHand.dmg`, drag TinyHand to Applications and allow **Accessibility** w
 While the pointer is on, a small toolbar at the bottom of the screen lets you pick one of
 36 hands or a laser dot, mute the tap sound, or exit.
 
-## Build
-
-```sh
-./scripts/build-app.sh && open dist/TinyHand.app
-```
-
 ## License
 
 MIT. See [LICENSE](LICENSE).

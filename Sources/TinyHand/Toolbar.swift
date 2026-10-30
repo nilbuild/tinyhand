@@ -46,12 +46,7 @@ final class Toolbar {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.alphaValue = 0
 
-        let background = NSVisualEffectView()
-        background.material = .hudWindow
-        background.blendingMode = .behindWindow
-        background.state = .active
-        background.appearance = NSAppearance(named: .vibrantDark)
-        background.roundCorners(16)
+        let background = NSVisualEffectView.darkGlass(radius: 16)
         panel.contentView = background
 
         stack.orientation = .horizontal
@@ -77,12 +72,7 @@ final class Toolbar {
         tray.level = panel.level
         tray.collectionBehavior = panel.collectionBehavior
         tray.alphaValue = 0
-        let trayBackground = NSVisualEffectView()
-        trayBackground.material = .hudWindow
-        trayBackground.blendingMode = .behindWindow
-        trayBackground.state = .active
-        trayBackground.appearance = NSAppearance(named: .vibrantDark)
-        trayBackground.roundCorners(14)
+        let trayBackground = NSVisualEffectView.darkGlass(radius: 14)
         tray.contentView = trayBackground
         trayStack.orientation = .horizontal
         trayStack.spacing = 2
@@ -298,12 +288,7 @@ final class Toolbar {
         p.level = panel.level
         p.collectionBehavior = panel.collectionBehavior
         p.alphaValue = 0
-        let bg = NSVisualEffectView()
-        bg.material = .hudWindow
-        bg.blendingMode = .behindWindow
-        bg.state = .active
-        bg.appearance = NSAppearance(named: .vibrantDark)
-        bg.roundCorners(12)
+        let bg = NSVisualEffectView.darkGlass(radius: 12)
         p.contentView = bg
         let row = NSStackView()
         row.orientation = .horizontal

@@ -401,6 +401,17 @@ private struct GeneralPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
+            if !AXIsProcessTrusted() {
+                Card(title: "Permission") {
+                    Row("Accessibility", detail: "Needed so clicks become taps and you can draw.") {
+                        PillButton(title: "Open Settings") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+            }
             Card(title: "Shortcuts") {
                 Row("Turn the pointer on or off") {
                     ShortcutField(shortcut: Preferences.toggleShortcut, model: model) { model.applyToggleShortcut?($0) ?? false }
@@ -448,27 +459,6 @@ private struct GeneralPage: View {
                             .toggleStyle(.switch).labelsHidden().focusable(false)
                     }
                 }
-            }
-            Card(title: "Permission") {
-                Row("Accessibility", detail: AXIsProcessTrusted()
-                    ? "Clicks become taps and you can draw."
-                    : "Needed so clicks become taps and you can draw.") {
-                    if AXIsProcessTrusted() {
-                        Label("Allowed", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.green)
-                    } else {
-                        PillButton(title: "Open Settings") {
-                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                    }
-                }
-            }
-            HStack {
-                Spacer()
-                TextButton(title: "Reset all settings…") { model.resetAll() }
             }
         }
     }
@@ -1136,6 +1126,10 @@ private struct AboutPage: View {
                 LinkRow(title: "Source code", detail: "github.com/nilbuild/tinyhand", url: "https://github.com/nilbuild/tinyhand")
                 LinkRow(title: "Made by", detail: "@nilbuild on X", url: "https://x.com/nilbuild")
                 LinkRow(title: "License", detail: "MIT", url: "https://github.com/nilbuild/tinyhand/blob/main/LICENSE")
+            }
+            HStack {
+                Spacer()
+                TextButton(title: "Reset all settings…") { model.resetAll() }
             }
         }
     }
