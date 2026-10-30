@@ -401,7 +401,7 @@ private struct GeneralPage: View {
                 Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
             Card(title: "Clicking for real") {
-                Row("Hold to use the app", detail: "While you hold this key, the hand stays on screen and your clicks, drags and scrolls reach the app under its fingertip.") {
+                Row("Hold to use the app", detail: "Clicks, drags and scrolls reach the app.") {
                     Picker("", selection: model.binding({ Preferences.interactKey }, { Preferences.interactKey = $0 })) {
                         ForEach(InteractKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
@@ -411,6 +411,18 @@ private struct GeneralPage: View {
                     .pickerStyle(.menu)
                     .fixedSize()
                     .focusable(false)
+                }
+                if Preferences.interactKey != .off {
+                    Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays, so recordings don't flicker." : "The normal cursor comes back.") {
+                        Picker("", selection: model.binding({ Preferences.interactKeepsHand }, { Preferences.interactKeepsHand = $0 })) {
+                            Text("Show the cursor").tag(false)
+                            Text("Keep the hand").tag(true)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
+                        .focusable(false)
+                    }
                 }
             }
             Card(title: "Startup") {

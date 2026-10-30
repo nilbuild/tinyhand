@@ -298,12 +298,12 @@ final class OverlayController {
             || Date() < menuOpeningUntil
         let key = Preferences.interactKey.cgFlags
         let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
-        let normal = !drawing && !interacting && (overMenu || ownMenuOpen)
+        let normal = !drawing && ((interacting && !Preferences.interactKeepsHand) || overMenu || ownMenuOpen)
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            let why = menuBar.contains(mouse) ? "menu bar" : "menu"
+            let why = interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
             Log.write(normal ? "real cursor (\(why)) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
