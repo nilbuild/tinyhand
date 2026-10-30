@@ -88,10 +88,16 @@ final class SettingsModel: ObservableObject {
         makingHand = true
     }
 
+    private var copiedReset: DispatchWorkItem?
+
     func copyPrompt() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(HandMaker.prompt(for: handIdea), forType: .string)
         promptCopied = true
+        copiedReset?.cancel()
+        let reset = DispatchWorkItem { [weak self] in self?.promptCopied = false }
+        copiedReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: reset)
     }
 
     func openChatGPT() {
@@ -384,7 +390,7 @@ private struct GeneralPage: View {
                 Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
             Card(title: "Clicking for real") {
-                Row("Hold to use the app", detail: "While you hold this key, the hand steps aside and your clicks, drags and scrolls reach the app underneath.") {
+                Row("Hold to use the app", detail: "While you hold this key, the hand stays on screen and your clicks, drags and scrolls reach the app under its fingertip.") {
                     Picker("", selection: model.binding({ Preferences.interactKey }, { Preferences.interactKey = $0 })) {
                         ForEach(InteractKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)

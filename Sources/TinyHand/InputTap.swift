@@ -2,6 +2,8 @@ import AppKit
 
 final class InputTap {
     var onMouseDown: (() -> Void)?
+    var onInteractDown: (() -> Void)?
+    var onInteractUp: (() -> Void)?
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
@@ -142,6 +144,7 @@ final class InputTap {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if !key.isEmpty && (event.flags.contains(key) || CGEventSource.flagsState(.hidSystemState).contains(key)) {
                 lock.withLock { _interactPress = true }
+                DispatchQueue.main.async { [weak self] in self?.onInteractDown?() }
             }
         default:
             break
@@ -150,6 +153,7 @@ final class InputTap {
             event.flags.remove(key)
             if type == .leftMouseUp || type == .rightMouseUp || type == .otherMouseUp {
                 lock.withLock { _interactPress = false }
+                DispatchQueue.main.async { [weak self] in self?.onInteractUp?() }
             }
             return Unmanaged.passUnretained(event)
         }

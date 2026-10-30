@@ -66,6 +66,13 @@ final class OverlayController {
         inputTap.onMouseUp = { [weak self] in
             self?.release()
         }
+        inputTap.onInteractDown = { [weak self] in
+            self?.armView.press()
+            self?.armView.held = true
+        }
+        inputTap.onInteractUp = { [weak self] in
+            self?.armView.held = false
+        }
         inputTap.onPassThroughPress = { [weak self] location in
             guard let screen = self?.currentScreen() else {
                 return
@@ -290,12 +297,12 @@ final class OverlayController {
             || Date() < menuOpeningUntil
         let key = Preferences.interactKey.cgFlags
         let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
-        let normal = !drawing && (overMenu || ownMenuOpen || interacting)
+        let normal = !drawing && !interacting && (overMenu || ownMenuOpen)
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            let why = interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
+            let why = menuBar.contains(mouse) ? "menu bar" : "menu"
             Log.write(normal ? "real cursor (\(why)) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
