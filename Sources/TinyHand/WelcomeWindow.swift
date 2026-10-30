@@ -47,7 +47,7 @@ final class WelcomeWindow: NSObject {
 
     private func refresh() {
         title.stringValue = granted ? "You're all set" : "Allow Accessibility"
-        subtitle.stringValue = granted ? "Press ⌃⌥H any time to start." : "So your clicks become taps, not real clicks."
+        subtitle.stringValue = granted ? "Press \(Preferences.toggleShortcut.display) any time to start." : "So your clicks become taps, not real clicks."
         button.title = granted ? "Start" : "Open Settings"
         tip.isHidden = granted || askedAt.map { Date().timeIntervalSince($0) < 10 } ?? true
     }
@@ -80,7 +80,7 @@ final class WelcomeWindow: NSObject {
         w.hasShadow = true
         w.isMovableByWindowBackground = true
         w.isReleasedWhenClosed = false
-        w.level = .floating
+        w.level = .normal
 
         let card = NSVisualEffectView(frame: CGRect(origin: .zero, size: size))
         card.material = .popover

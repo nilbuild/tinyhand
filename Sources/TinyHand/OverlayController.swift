@@ -11,6 +11,7 @@ final class OverlayController {
     private let armView: ArmView
     private let inputTap = InputTap()
     private let tapSound = TapSound()
+    private var interactHeld = false
     private var timer: Timer?
     private var currentFrame: CGRect?
     private var downPoint: CGPoint?
@@ -314,6 +315,7 @@ final class OverlayController {
             || Date() < menuOpeningUntil
         let key = Preferences.interactKey.cgFlags
         let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
+        interactHeld = interacting
         let normal = !drawing && ((interacting && !Preferences.interactKeepsHand) || overMenu || ownMenuOpen)
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
@@ -455,7 +457,7 @@ final class OverlayController {
 
         updateZones(mouse: mouse, screen: screen)
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
-        let catchMouse = overDock && inputTap.isInstalled && !normalCursor
+        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld
         if window.ignoresMouseEvents == catchMouse {
             window.ignoresMouseEvents = !catchMouse
         }

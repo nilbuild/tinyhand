@@ -80,7 +80,7 @@ jobs:
             "dist/release/TinyHand-$VERSION.dmg" "dist/release/TinyHand-$VERSION.dmg.sha256" \
             dist/release/TinyHand.dmg \
             dist/release/appcast.xml \
-            --title "TinyHand $VERSION" --notes "$RELEASE_NOTES"
+            --title "$VERSION" --notes "$RELEASE_NOTES"
 
       - name: Remove the signing keychain
         if: always()

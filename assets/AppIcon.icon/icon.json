@@ -1,53 +1,44 @@
 {
-  "fill-specializations": [
-    {
-      "value": {
-        "linear-gradient": [
-          "srgb:1.00000,0.95294,0.91373,1.00000",
-          "srgb:1.00000,0.84706,0.75294,1.00000"
-        ],
-        "orientation": {
-          "start": {
-            "x": 0.5,
-            "y": 0
-          },
-          "stop": {
-            "x": 0.5,
-            "y": 1
-          }
-        }
-      }
-    },
-    {
-      "appearance": "dark",
-      "value": {
-        "linear-gradient": [
-          "srgb:0.36078,0.21961,0.17255,1.00000",
-          "srgb:0.20784,0.12157,0.09412,1.00000"
-        ],
-        "orientation": {
-          "start": {
-            "x": 0.5,
-            "y": 0
-          },
-          "stop": {
-            "x": 0.5,
-            "y": 1
-          }
-        }
+  "fill": {
+    "automatic-gradient": "display-p3:0.09585,0.00000,0.11138,1.00000",
+    "orientation": {
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "stop": {
+        "x": 0.5,
+        "y": 0.7
       }
     }
-  ],
+  },
   "groups": [
     {
-      "name": "Hand",
       "layers": [
         {
-          "image-name": "coral.png",
-          "name": "coral",
+          "fill": {
+            "solid": "display-p3:0.94531,0.91748,0.84717,1.00000"
+          },
           "glass": false,
+          "image-name": "front.svg",
+          "name": "front",
           "position": {
-            "scale": 1,
+            "scale": 19,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "fill": {
+            "solid": "display-p3:0.55000,0.42000,0.56000,1.00000"
+          },
+          "glass": false,
+          "image-name": "back.svg",
+          "name": "back",
+          "position": {
+            "scale": 19,
             "translation-in-points": [
               0,
               0
@@ -57,13 +48,12 @@
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.45
+        "opacity": 0.5
       },
       "translucency": {
-        "enabled": false,
+        "enabled": true,
         "value": 0.5
-      },
-      "specular": true
+      }
     }
   ],
   "supported-platforms": {
