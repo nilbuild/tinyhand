@@ -3,8 +3,8 @@
     {
       "value": {
         "linear-gradient": [
-          "srgb:0.86275,0.47059,0.26275,1.00000",
-          "srgb:0.70588,0.32549,0.16471,1.00000"
+          "srgb:1.00000,0.95294,0.91373,1.00000",
+          "srgb:1.00000,0.84706,0.75294,1.00000"
         ],
         "orientation": {
           "start": {
@@ -22,8 +22,8 @@
       "appearance": "dark",
       "value": {
         "linear-gradient": [
-          "srgb:0.42353,0.19608,0.10196,1.00000",
-          "srgb:0.22745,0.10196,0.05490,1.00000"
+          "srgb:0.36078,0.21961,0.17255,1.00000",
+          "srgb:0.20784,0.12157,0.09412,1.00000"
         ],
         "orientation": {
           "start": {
@@ -40,11 +40,11 @@
   ],
   "groups": [
     {
-      "name": "Glove",
+      "name": "Hand",
       "layers": [
         {
-          "image-name": "glove.png",
-          "name": "glove",
+          "image-name": "coral.png",
+          "name": "coral",
           "glass": false,
           "position": {
             "scale": 1,
