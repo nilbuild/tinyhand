@@ -122,18 +122,39 @@
       new ResizeObserver(resize).observe(stage);
     }
 
+    const soundBytes = fetch(opts.base + opts.sound).then(r => r.arrayBuffer()).catch(() => null);
+    let pendingTap = false;
     function ensureAudio() {
       if (audio) {
+        if (audio.state === 'suspended') {
+          audio.resume();
+        }
         return;
       }
       try {
         audio = new (window.AudioContext || window.webkitAudioContext)();
-        fetch(opts.base + opts.sound).then(r => r.arrayBuffer()).then(b => audio.decodeAudioData(b)).then(d => { buffer = d; }).catch(() => {});
+        soundBytes.then(b => (b ? audio.decodeAudioData(b.slice(0)) : null)).then(d => {
+          buffer = d;
+          if (pendingTap) {
+            pendingTap = false;
+            playBuffer();
+          }
+        }).catch(() => {});
       } catch (e) {}
     }
     function thock() {
       const on = style === 'laser' ? soundOn.laser : soundOn.hands;
-      if (!on || !audio || !buffer) {
+      if (!on || !audio) {
+        return;
+      }
+      if (!buffer) {
+        pendingTap = true;
+        return;
+      }
+      playBuffer();
+    }
+    function playBuffer() {
+      if (!buffer) {
         return;
       }
       const src = audio.createBufferSource();
