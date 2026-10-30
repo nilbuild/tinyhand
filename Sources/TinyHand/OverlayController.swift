@@ -225,6 +225,11 @@ final class OverlayController {
         guard !isActive else {
             return inputTap.isInstalled
         }
+        guard AXIsProcessTrusted() else {
+            Log.write("activate skipped: not trusted")
+            onNeedsPermission?()
+            return false
+        }
         isActive = true
         currentFrame = nil
         tapSound.warm()
