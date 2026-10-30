@@ -171,6 +171,10 @@ final class SettingsModel: ObservableObject {
         revision += 1
     }
 
+    func refresh() {
+        revision += 1
+    }
+
     func binding<T>(_ get: @escaping () -> T, _ set: @escaping (T) -> Void) -> Binding<T> {
         Binding(get: get, set: { value in
             set(value)
@@ -180,14 +184,19 @@ final class SettingsModel: ObservableObject {
 
     private var previewSound: TapSound?
 
+    func warmPreview() {
+        if previewSound == nil {
+            previewSound = TapSound()
+        }
+        previewSound?.warm()
+    }
+
     func preview(_ choice: TapSoundChoice) {
         if previewSound == nil {
             previewSound = TapSound(choice)
         }
         previewSound?.load(choice)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            self?.previewSound?.play()
-        }
+        previewSound?.play()
     }
 
     @Published var dragging: PointerStyle?
@@ -930,33 +939,89 @@ private struct DrawingPage: View {
 
 private struct SoundPage: View {
     @ObservedObject var model: SettingsModel
+    private let columns = [GridItem(.adaptive(minimum: 104, maximum: 140), spacing: 8)]
 
     var body: some View {
-        Card(title: "Tap sound") {
-            Row("Sound", detail: "Plays on every tap. Pick one to hear it.") {
-                Picker("", selection: model.binding({ Preferences.tapSound }, { choice in
-                    Preferences.tapSound = choice
-                    model.preview(choice)
-                })) {
+        let on = Preferences.handSound
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tap sound")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    SoundTile(title: "Off", symbol: "speaker.slash.fill", selected: !on) {
+                        Preferences.handSound = false
+                        model.refresh()
+                    }
                     ForEach(TapSoundChoice.allCases, id: \.self) { choice in
-                        Text(choice.title).tag(choice)
+                        SoundTile(title: choice.title, symbol: "waveform", selected: on && Preferences.tapSound == choice) {
+                            Preferences.tapSound = choice
+                            Preferences.handSound = true
+                            model.preview(choice)
+                            model.refresh()
+                        }
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-                .focusable(false)
-                PillButton(title: "Play") { model.preview(Preferences.tapSound) }
+                Text("Click a sound to hear it. It plays each time the hand taps.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
             }
-            Row("Hands", detail: "Tap sound for the hands.") {
-                Toggle("", isOn: model.binding({ Preferences.handSound }, { Preferences.handSound = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
+            Card(title: nil) {
+                Row("Laser dot taps too", detail: "Off by default, for quiet pointing.") {
+                    Toggle("", isOn: model.binding({ Preferences.laserSound }, { Preferences.laserSound = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                        .disabled(!on)
+                }
             }
-            Row("Laser dot", detail: "Off by default, for quiet pointing.") {
-                Toggle("", isOn: model.binding({ Preferences.laserSound }, { Preferences.laserSound = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
-            }
+            .opacity(on ? 1 : 0.5)
         }
+        .onAppear { model.warmPreview() }
+    }
+}
+
+private struct SoundTile: View {
+    let title: String
+    let symbol: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+    @State private var pulse = false
+
+    var body: some View {
+        Button {
+            action()
+            pulse = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { pulse = false }
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(selected ? .accentColor : .secondary)
+                    .scaleEffect(pulse ? 1.18 : 1)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.5), value: pulse)
+                    .frame(height: 22)
+                Text(title)
+                    .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                    .foregroundColor(selected ? .primary : .secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(hovering ? 0.07 : 0.035))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering = $0 }
     }
 }
 

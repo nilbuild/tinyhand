@@ -223,6 +223,7 @@ final class OverlayController {
         }
         isActive = true
         currentFrame = nil
+        tapSound.warm()
 
         CursorHider.hide()
         tick()

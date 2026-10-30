@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 
 enum TapSoundChoice: String, CaseIterable {
     case thock, click, pop, wood, boop, squeak
@@ -16,35 +17,60 @@ enum TapSoundChoice: String, CaseIterable {
 }
 
 final class TapSound {
-    private var sound: NSSound?
-    private var loadedChoice: TapSoundChoice?
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private var buffers: [TapSoundChoice: AVAudioPCMBuffer] = [:]
+    private var choice: TapSoundChoice
+    private var idleStop: DispatchWorkItem?
 
     var enabled = true
 
     init(_ choice: TapSoundChoice = Preferences.tapSound) {
-        load(choice)
+        self.choice = choice
+        for c in TapSoundChoice.allCases {
+            if let buffer = TapSound.read(c) {
+                buffers[c] = buffer
+            }
+        }
+        engine.attach(player)
+        let format = buffers.values.first?.format ?? AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.prepare()
     }
 
     func load(_ choice: TapSoundChoice) {
-        guard choice != loadedChoice else {
-            return
-        }
-        loadedChoice = choice
-        sound = TapSound.find(choice) ?? NSSound(named: NSSound.Name("Pop"))
-        warmUp()
+        self.choice = choice
+    }
+
+    func warm() {
+        start()
     }
 
     func play() {
-        guard enabled, let sound = sound else {
+        guard enabled, let buffer = buffers[choice] else {
             return
         }
-        if sound.isPlaying {
-            sound.stop()
+        start()
+        player.scheduleBuffer(buffer, at: nil, options: .interrupts)
+        if !player.isPlaying {
+            player.play()
         }
-        sound.play()
     }
 
-    private static func find(_ choice: TapSoundChoice) -> NSSound? {
+    private func start() {
+        if !engine.isRunning {
+            try? engine.start()
+        }
+        idleStop?.cancel()
+        let stop = DispatchWorkItem { [weak self] in
+            self?.player.stop()
+            self?.engine.pause()
+        }
+        idleStop = stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: stop)
+    }
+
+    private static func read(_ choice: TapSoundChoice) -> AVAudioPCMBuffer? {
         let name = "tap_\(choice.rawValue)"
         let exeDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
         let candidates = [
@@ -54,22 +80,14 @@ final class TapSound {
             URL(fileURLWithPath: "assets/sounds/\(name).wav"),
         ].compactMap { $0 }
         for url in candidates where FileManager.default.fileExists(atPath: url.path) {
-            if let s = NSSound(contentsOf: url, byReference: false) {
-                return s
+            guard let file = try? AVAudioFile(forReading: url),
+                  let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
+                continue
+            }
+            if (try? file.read(into: buffer)) != nil {
+                return buffer
             }
         }
         return nil
-    }
-
-    private func warmUp() {
-        guard let sound = sound else {
-            return
-        }
-        sound.volume = 0
-        sound.play()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            sound.stop()
-            sound.volume = 1
-        }
     }
 }
