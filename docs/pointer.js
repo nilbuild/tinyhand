@@ -32,6 +32,10 @@
     {id: 'cactus', name: 'Cactus', src: 'assets/hands/cactus.png', w: 225, h: 380, tip: [89.4, 12.6], wrist: [119.6, 368.0], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#3e9e2e'},
     {id: 'choco', name: 'Chocolate', src: 'assets/hands/choco.png', w: 243, h: 380, tip: [86.7, 12.4], wrist: [119.7, 368.2], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#9a5e2c'},
     {id: 'cloud', name: 'Cloud', src: 'assets/hands/cloud.png', w: 255, h: 380, tip: [90.6, 12.3], wrist: [127.3, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#2f86f0'},
+    {id: 'mech', name: 'Mech', src: 'assets/hands/mech.png', w: 260, h: 380, tip: [70.2, 5.3], wrist: [140.1, 372.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#f0561d'},
+    {id: 'neon', name: 'Neon', src: 'assets/hands/neon.png', w: 249, h: 380, tip: [79.9, 5.3], wrist: [129.8, 372.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#e0309a'},
+    {id: 'leaf', name: 'Leaf', src: 'assets/hands/leaf.png', w: 242, h: 380, tip: [66.3, 5.3], wrist: [129.0, 372.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#3e9e2e'},
+    {id: 'cookie', name: 'Gingerbread', src: 'assets/hands/cookie.png', w: 249, h: 380, tip: [70.6, 5.3], wrist: [128.3, 372.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#9a5e2c'},
   ];
   const PURPLE = '#8754f2';
   const RED = '#ff2a1f';
