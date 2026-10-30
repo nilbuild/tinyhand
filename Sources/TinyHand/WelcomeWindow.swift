@@ -109,7 +109,7 @@ final class WelcomeWindow: NSObject {
         button.widthAnchor.constraint(equalToConstant: 180).isActive = true
 
         tip.font = NSFont.systemFont(ofSize: 11)
-        tip.textColor = .tertiaryLabelColor
+        tip.textColor = .secondaryLabelColor
         tip.alignment = .center
 
         let stack = NSStackView(views: [icon, title, subtitle, button, tip])

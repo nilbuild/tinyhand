@@ -27,7 +27,10 @@ final class Toolbar {
     private var soundButton: Button?
     private(set) var revealed = false
 
-    var frame: CGRect { panel.frame }
+    private let tray: Panel
+    private let trayStack = NSStackView()
+
+    var frame: CGRect { inkOpen ? panel.frame.union(tray.frame) : panel.frame }
 
     init() {
         panel = Panel(contentRect: CGRect(x: 0, y: 0, width: 300, height: 56),
@@ -60,6 +63,36 @@ final class Toolbar {
             stack.trailingAnchor.constraint(equalTo: background.trailingAnchor),
             stack.topAnchor.constraint(equalTo: background.topAnchor),
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
+
+        tray = Panel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
+                     styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        tray.isOpaque = false
+        tray.backgroundColor = .clear
+        tray.hasShadow = true
+        tray.hidesOnDeactivate = false
+        tray.isFloatingPanel = true
+        tray.becomesKeyOnlyIfNeeded = true
+        tray.level = panel.level
+        tray.collectionBehavior = panel.collectionBehavior
+        tray.alphaValue = 0
+        let trayBackground = NSVisualEffectView()
+        trayBackground.material = .hudWindow
+        trayBackground.blendingMode = .behindWindow
+        trayBackground.state = .active
+        trayBackground.appearance = NSAppearance(named: .vibrantDark)
+        trayBackground.roundCorners(14)
+        tray.contentView = trayBackground
+        trayStack.orientation = .horizontal
+        trayStack.spacing = 2
+        trayStack.edgeInsets = NSEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
+        trayStack.translatesAutoresizingMaskIntoConstraints = false
+        trayBackground.addSubview(trayStack)
+        NSLayoutConstraint.activate([
+            trayStack.leadingAnchor.constraint(equalTo: trayBackground.leadingAnchor),
+            trayStack.trailingAnchor.constraint(equalTo: trayBackground.trailingAnchor),
+            trayStack.topAnchor.constraint(equalTo: trayBackground.topAnchor),
+            trayStack.bottomAnchor.constraint(equalTo: trayBackground.bottomAnchor),
         ])
 
         stack.addArrangedSubview(Toolbar.divider())
@@ -116,25 +149,42 @@ final class Toolbar {
         }
         inkOpen = open
         if open {
-            var index = (stack.arrangedSubviews.firstIndex(of: ink) ?? 0) + 1
-            for choice in InkChoice.allCases {
-                let b = makeButton(image: nil, tip: choice.title) { [weak self] in
-                    Preferences.inkChoice = choice
-                    self?.setInkOpen(false)
+            if swatches.isEmpty {
+                for choice in InkChoice.allCases {
+                    let b = makeButton(image: nil, tip: choice.title, side: 30) { [weak self] in
+                        Preferences.inkChoice = choice
+                        self?.setInkOpen(false)
+                    }
+                    b.layer?.cornerRadius = 15
+                    swatches[choice] = b
+                    trayStack.addArrangedSubview(b)
                 }
-                swatches[choice] = b
-                stack.insertArrangedSubview(b, at: index)
-                index += 1
+                tray.contentView?.removeFocusRings()
+                trayStack.layoutSubtreeIfNeeded()
+                tray.setContentSize(trayStack.fittingSize)
+            }
+            refreshInk()
+            let r = panel.convertToScreen(ink.convert(ink.bounds, to: nil))
+            let size = tray.frame.size
+            tray.setFrameOrigin(CGPoint(x: r.midX - size.width / 2, y: panel.frame.maxY + 8))
+            tray.invalidateShadow()
+            tray.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                tray.animator().alphaValue = 1
             }
         } else {
-            for b in swatches.values {
-                actions[b] = nil
-                b.removeFromSuperview()
-            }
-            swatches = [:]
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.12
+                tray.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self = self, !self.inkOpen else {
+                    return
+                }
+                self.tray.orderOut(nil)
+            })
         }
         refreshInk()
-        resizeKeepingCenter()
     }
 
     private func refreshInk() {
@@ -153,8 +203,8 @@ final class Toolbar {
             resizeKeepingCenter()
         }
         for (choice, b) in swatches {
-            b.image = choice == .match ? Toolbar.icon(for: style) : Toolbar.inkDot(choice.color ?? style.inkColor)
-            b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
+            b.image = choice.color.map(Toolbar.inkDot) ?? Toolbar.rainbowDot()
+            b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.2).cgColor : NSColor.clear.cgColor
         }
     }
 
@@ -222,6 +272,20 @@ final class Toolbar {
         return rep
     }
 
+    func snapshotInkTray() -> NSBitmapImageRep? {
+        setInkOpen(true)
+        guard let view = tray.contentView else {
+            return nil
+        }
+        view.layer?.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+        view.layoutSubtreeIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return nil
+        }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep
+    }
+
     func select(_ style: PointerStyle) {
         current = style
         rebuildStyles()
@@ -267,6 +331,9 @@ final class Toolbar {
             return
         }
         revealed = value
+        if !value {
+            setInkOpen(false)
+        }
         panel.ignoresMouseEvents = !value
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = value ? 0.15 : 0.35
@@ -283,7 +350,7 @@ final class Toolbar {
 
     private var actions: [Button: () -> Void] = [:]
 
-    private func makeButton(image: NSImage? = nil, symbol: String? = nil, tip: String, action: @escaping () -> Void) -> Button {
+    private func makeButton(image: NSImage? = nil, symbol: String? = nil, tip: String, side: CGFloat = 40, action: @escaping () -> Void) -> Button {
         let b = Button()
         b.isBordered = false
         b.bezelStyle = .regularSquare
@@ -301,8 +368,8 @@ final class Toolbar {
             b.contentTintColor = NSColor(white: 1, alpha: 0.85)
             b.imageScaling = .scaleNone
         }
-        b.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        b.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        b.widthAnchor.constraint(equalToConstant: side).isActive = true
+        b.heightAnchor.constraint(equalToConstant: side).isActive = true
         b.target = self
         b.action = #selector(tapped(_:))
         actions[b] = action
@@ -327,6 +394,25 @@ final class Toolbar {
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
             NSColor(white: 1, alpha: 0.35).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
+            return true
+        }
+    }
+
+    private static func rainbowDot() -> NSImage {
+        NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            let c = CGPoint(x: rect.midX, y: rect.midY)
+            let r: CGFloat = 13
+            NSColor(white: 0, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
+            let colors: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple]
+            for (i, color) in colors.enumerated() {
+                let path = NSBezierPath()
+                path.move(to: c)
+                path.appendArc(withCenter: c, radius: r, startAngle: CGFloat(i) * 60 + 90, endAngle: CGFloat(i + 1) * 60 + 90)
+                path.close()
+                color.setFill()
+                path.fill()
+            }
             return true
         }
     }

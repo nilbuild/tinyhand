@@ -27,6 +27,11 @@ if let idx = CommandLine.arguments.firstIndex(of: "--toolbar-test") {
         try? data.write(to: URL(fileURLWithPath: out))
         print("rendered \(out)")
     }
+    if CommandLine.arguments.contains("--ink"), let data = bar.snapshotInkTray()?.representation(using: .png, properties: [:]) {
+        let trayOut = out.replacingOccurrences(of: ".png", with: "-ink.png")
+        try? data.write(to: URL(fileURLWithPath: trayOut))
+        print("rendered \(trayOut)")
+    }
     exit(0)
 }
 

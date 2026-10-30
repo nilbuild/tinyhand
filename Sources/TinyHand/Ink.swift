@@ -61,7 +61,7 @@ final class Ink {
         if keep {
             return
         }
-        fade(s)
+        fade(s, after: fadeDelay, over: fadeDuration)
     }
 
     func clear() {
@@ -70,16 +70,17 @@ final class Ink {
         layer.sublayers?.forEach { $0.removeFromSuperlayer() }
     }
 
-    private func fade(_ s: CAShapeLayer) {
+    private func fade(_ s: CAShapeLayer, after delay: CFTimeInterval, over duration: CFTimeInterval) {
         let anim = CABasicAnimation(keyPath: "opacity")
         anim.fromValue = 1
         anim.toValue = 0
-        anim.beginTime = CACurrentMediaTime() + fadeDelay
-        anim.duration = fadeDuration
+        anim.beginTime = CACurrentMediaTime() + delay
+        anim.duration = duration
+        anim.timingFunction = CAMediaTimingFunction(name: .easeIn)
         anim.fillMode = .forwards
         anim.isRemovedOnCompletion = false
         s.add(anim, forKey: "fade")
-        DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay + fadeDuration) { [weak s] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + duration) { [weak s] in
             s?.removeFromSuperlayer()
         }
     }

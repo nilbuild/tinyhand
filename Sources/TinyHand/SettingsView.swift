@@ -101,7 +101,9 @@ final class SettingsModel: ObservableObject {
     }
 
     func openChatGPT() {
-        if let url = URL(string: "https://chatgpt.com/") {
+        var parts = URLComponents(string: "https://chatgpt.com/")
+        parts?.queryItems = [URLQueryItem(name: "q", value: HandMaker.prompt(for: handIdea))]
+        if let url = parts?.url {
             NSWorkspace.shared.open(url)
         }
     }
@@ -444,10 +446,6 @@ private struct GeneralPage: View {
                 Spacer()
                 TextButton(title: "Reset all settings…") { model.resetAll() }
             }
-            Text("Click the menu bar icon to turn the pointer on or off, right-click it for the menu. While it's on, click to tap, hold and drag to draw, hold \(Preferences.interactKey == .off ? "the interact key" : Preferences.interactKey.title) to click for real, and press Esc to clear and exit.")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -907,10 +905,20 @@ private struct DrawingPage: View {
 
     var body: some View {
         Card(title: "Ink") {
-            Row("Colour", detail: "Each pointer draws in its own colour unless you pick one.") {
-                Picker("", selection: model.binding({ Preferences.inkChoice }, { Preferences.inkChoice = $0 })) {
+            Row("Ink colour", detail: Preferences.inkChoice == .match ? "Matches each pointer." : "All pointers draw in \(Preferences.inkChoice.title.lowercased()).") {
+                HStack(spacing: 8) {
                     ForEach(InkChoice.allCases, id: \.self) { choice in
-                        Text(choice.title).tag(choice)
+                        InkSwatch(choice: choice, selected: Preferences.inkChoice == choice) {
+                            Preferences.inkChoice = choice
+                            model.refresh()
+                        }
+                    }
+                }
+            }
+            Row("Lines fade", detail: "Clear them any time with \(Preferences.clearShortcut.display).") {
+                Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
+                    ForEach(DrawingPage.choices, id: \.1) { choice in
+                        Text(choice.0).tag(choice.1)
                     }
                 }
                 .labelsHidden()
@@ -921,17 +929,6 @@ private struct DrawingPage: View {
             Row("Ink button in the toolbar", detail: "Change the colour while you present.") {
                 Toggle("", isOn: model.binding({ Preferences.showInkButton }, { Preferences.showInkButton = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
-            }
-            Row("Lines fade", detail: "Hold and drag to draw. Clear everything any time with the shortcut.") {
-                Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
-                    ForEach(DrawingPage.choices, id: \.1) { choice in
-                        Text(choice.0).tag(choice.1)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-                .focusable(false)
             }
         }
     }
@@ -981,26 +978,48 @@ private struct SoundPage: View {
     }
 }
 
+private struct InkSwatch: View {
+    let choice: InkChoice
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let color = choice.color {
+                    Circle().fill(Color(cgColor: color))
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(choice == .black ? 0.35 : 0.15), lineWidth: 1))
+                } else {
+                    Circle().fill(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center))
+                }
+            }
+            .frame(width: 20, height: 20)
+            .padding(3)
+            .overlay(Circle().strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 2))
+            .scaleEffect(hovering && !selected ? 1.08 : 1)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(choice.title)
+        .onHover { hovering = $0 }
+    }
+}
+
 private struct SoundTile: View {
     let title: String
     let symbol: String
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
-    @State private var pulse = false
 
     var body: some View {
-        Button {
-            action()
-            pulse = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { pulse = false }
-        } label: {
+        Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: symbol)
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(selected ? .accentColor : .secondary)
-                    .scaleEffect(pulse ? 1.18 : 1)
-                    .animation(.spring(response: 0.2, dampingFraction: 0.5), value: pulse)
                     .frame(height: 22)
                 Text(title)
                     .font(.system(size: 12, weight: selected ? .semibold : .regular))
@@ -1049,6 +1068,7 @@ private struct AboutPage: View {
                 LinkRow(title: "Website", detail: "tinyhand.app", url: "https://tinyhand.app")
                 LinkRow(title: "Source code", detail: "github.com/nilbuild/tinyhand", url: "https://github.com/nilbuild/tinyhand")
                 LinkRow(title: "Made by", detail: "@nilbuild on X", url: "https://x.com/nilbuild")
+                LinkRow(title: "License", detail: "MIT", url: "https://github.com/nilbuild/tinyhand/blob/main/LICENSE")
             }
         }
     }
@@ -1238,12 +1258,12 @@ private struct MakeHandPage: View {
                 PlainField(placeholder: "e.g. knitted wool in mustard yellow", text: $model.handIdea)
                     .frame(maxWidth: 420)
             }
-            Step(number: 2, title: "Make the image", detail: "Paste the prompt into ChatGPT or any image tool, then download it as a PNG with a transparent background.") {
+            Step(number: 2, title: "Make the image", detail: "Open it in ChatGPT, or copy the prompt for another image tool. Download the result as a PNG with a transparent background.") {
                 HStack(spacing: 8) {
-                    PrimaryButton(title: model.promptCopied ? "Copied" : "Copy prompt", symbol: model.promptCopied ? "checkmark" : "doc.on.doc") {
+                    PrimaryButton(title: "Open in ChatGPT", symbol: "arrow.up.right") { model.openChatGPT() }
+                    PrimaryButton(title: model.promptCopied ? "Copied" : "Copy prompt", symbol: model.promptCopied ? "checkmark" : "doc.on.doc", primary: false) {
                         model.copyPrompt()
                     }
-                    PillButton(title: "Open ChatGPT ↗") { model.openChatGPT() }
                 }
             }
             Step(number: 3, title: "Add it", detail: nil) {
@@ -1397,6 +1417,7 @@ private struct NoFocusEffect: ViewModifier {
 private struct PrimaryButton: View {
     let title: String
     let symbol: String?
+    var primary = true
     let action: () -> Void
     @State private var hovering = false
 
@@ -1404,21 +1425,25 @@ private struct PrimaryButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let symbol = symbol {
-                    Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                    Image(systemName: symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 14, height: 14)
                 }
                 Text(title).font(.system(size: 12, weight: .semibold))
             }
-            .foregroundColor(.white)
+            .foregroundColor(primary ? .white : .primary)
             .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(Color.accentColor.opacity(hovering ? 0.88 : 1)))
+            .frame(height: 30)
+            .background(Capsule().fill(primary
+                ? Color.accentColor.opacity(hovering ? 0.88 : 1)
+                : Color.primary.opacity(hovering ? 0.14 : 0.09)))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .focusable(false)
         .onHover { hovering = $0 }
     }
 }
-
 private struct ShortcutField: NSViewRepresentable {
     let shortcut: Shortcut
     let model: SettingsModel

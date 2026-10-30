@@ -34,16 +34,19 @@ enum InteractKey: String, CaseIterable {
 }
 
 enum InkChoice: String, CaseIterable {
-    case match, red, yellow, green, blue, white
+    case match, red, orange, yellow, green, blue, purple, white, black
 
     var title: String {
         switch self {
         case .match: return "Match the pointer"
         case .red: return "Red"
+        case .orange: return "Orange"
         case .yellow: return "Yellow"
         case .green: return "Green"
         case .blue: return "Blue"
+        case .purple: return "Purple"
         case .white: return "White"
+        case .black: return "Black"
         }
     }
 
@@ -51,10 +54,13 @@ enum InkChoice: String, CaseIterable {
         switch self {
         case .match: return nil
         case .red: return Ink.red
+        case .orange: return Ink.hex(0xFF8A00)
         case .yellow: return Ink.hex(0xFFCC00)
         case .green: return Ink.hex(0x30C25A)
         case .blue: return Ink.hex(0x0A84FF)
+        case .purple: return Ink.hex(0x8754F2)
         case .white: return Ink.hex(0xFFFFFF)
+        case .black: return Ink.hex(0x1D1D21)
         }
     }
 
