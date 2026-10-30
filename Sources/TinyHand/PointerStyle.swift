@@ -1,10 +1,5 @@
 import AppKit
 
-// The pointers the user can pick from: toy hands on sticks in many materials, and
-// a small red laser dot. The toolbar shows the pinned ones (Preferences.pinnedStyles).
-// Each hand is one vertical image (hand on top, stick below); its
-// fingertip, wrist and rod are found from the image's alpha when it loads, so a new
-// hand only needs a new PNG.
 enum PointerStyle: String, CaseIterable {
     case lavender
     case glove
@@ -40,7 +35,6 @@ enum PointerStyle: String, CaseIterable {
     case cloud
     case laser
 
-    // The ones in the toolbar until the user pins others in Settings.
     static let defaultPinned: [PointerStyle] = [.lavender, .glove, .coral, .plush, .robot, .laser]
 
     var title: String {
@@ -88,7 +82,6 @@ enum PointerStyle: String, CaseIterable {
         }
     }
 
-    // Each pointer draws in a colour that goes with it, unless the user picks one.
     var inkColor: CGColor {
         switch self {
         case .laser, .coral, .space: return Ink.red
@@ -113,10 +106,10 @@ enum PointerStyle: String, CaseIterable {
         get {
             let raw = UserDefaults.standard.string(forKey: defaultsKey)
             if raw == "dot" {
-                return .laser // renamed
+                return .laser
             }
             if raw == "sunny" {
-                return .coral // the yellow was replaced by coral
+                return .coral
             }
             return raw.flatMap(PointerStyle.init(rawValue:)) ?? .lavender
         }
@@ -124,18 +117,16 @@ enum PointerStyle: String, CaseIterable {
     }
 }
 
-// A hand image plus where things are in it, as fractions measured top-down from
-// the image's top-left.
 struct HandAsset {
     let image: CGImage
-    let aspect: CGFloat     // width / height
-    let handTop: CGFloat    // a little headroom above the fingertip
-    let tip: CGFloat        // fingertip
-    let wrist: CGFloat      // where the hand meets the stick
-    let rodEnd: CGFloat     // where the stick ends, or a handle begins
-    let tipX: CGFloat       // finger centerline
-    let rodX: CGFloat       // stick axis
-    let handMinX: CGFloat   // the hand's horizontal extent, for thumbnails
+    let aspect: CGFloat
+    let handTop: CGFloat
+    let tip: CGFloat
+    let wrist: CGFloat
+    let rodEnd: CGFloat
+    let tipX: CGFloat
+    let rodX: CGFloat
+    let handMinX: CGFloat
     let handMaxX: CGFloat
 
     private static var cache: [String: HandAsset] = [:]
@@ -153,13 +144,10 @@ struct HandAsset {
 
     private static var thumbnails: [String: NSImage] = [:]
 
-    // Main thread only. Nil until built, e.g. by preloadThumbnails.
     static func cachedThumbnail(_ name: String) -> NSImage? {
         thumbnails[name]
     }
 
-    // Builds the missing thumbnails off the main thread (each needs its full image
-    // decoded and measured), then stores them on the main thread and calls done.
     static func preloadThumbnails(_ names: [String], done: (() -> Void)? = nil) {
         let missing = names.filter { thumbnails[$0] == nil }
         guard !missing.isEmpty else {
@@ -182,7 +170,6 @@ struct HandAsset {
         }
     }
 
-    // A hand's thumbnail without keeping its full image in memory, for the Pointers window.
     static func thumbnail(_ name: String) -> NSImage? {
         if let hit = thumbnails[name] {
             return hit
@@ -195,8 +182,6 @@ struct HandAsset {
         return thumb
     }
 
-    // A square crop hugging the hand, for toolbar buttons, redrawn small so it doesn't
-    // hold on to the full image.
     var thumbnail: NSImage {
         let h = CGFloat(image.height)
         let w = CGFloat(image.width)
@@ -232,7 +217,6 @@ struct HandAsset {
         }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
 
-        // Row 0 of the buffer is the image's top row.
         func count(_ y: Int) -> Int {
             var n = 0
             let row = y * w

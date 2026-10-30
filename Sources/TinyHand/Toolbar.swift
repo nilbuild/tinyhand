@@ -1,9 +1,5 @@
 import AppKit
 
-// The floating bar at the bottom of the screen while the pointer is on: pick one of the
-// pinned pointers, turn the tap sound on or off, or exit. It never takes focus from the app being
-// demoed, and the overlay lets clicks through to it (see InputTap.passThroughRect).
-// It fades away while you work and comes back when the cursor heads toward it.
 final class Toolbar {
     var onPick: ((PointerStyle) -> Void)?
     var onToggleSound: (() -> Void)?
@@ -15,7 +11,6 @@ final class Toolbar {
         override var canBecomeMain: Bool { false }
     }
 
-    // Buttons in a panel that never becomes key must act on the first click.
     private final class Button: NSButton {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
@@ -111,8 +106,6 @@ final class Toolbar {
         }
     }
 
-    // The ink button shows the colour strokes will be drawn in. Clicking it slides out a
-    // short row of colours next to it; picking one closes the row again.
     private func toggleInk() {
         setInkOpen(!inkOpen)
     }
@@ -171,7 +164,6 @@ final class Toolbar {
         panel.setFrameOrigin(CGPoint(x: center.x - panel.frame.width / 2, y: center.y))
     }
 
-    // The pinned pointers, plus the one in use if it isn't pinned.
     private func rebuildStyles() {
         var styles = Preferences.pinnedStyles
         if let c = current, !styles.contains(c) {
@@ -208,7 +200,6 @@ final class Toolbar {
         soundButton?.contentTintColor = NSColor(white: 1, alpha: on ? 0.85 : 0.45)
     }
 
-    // Screen position (AppKit global coords) of a style's button, for tests.
     func center(of style: PointerStyle) -> CGPoint? {
         guard let b = styleButtons[style], let w = b.window else {
             return nil
@@ -217,7 +208,6 @@ final class Toolbar {
         return CGPoint(x: r.midX, y: r.midY)
     }
 
-    // Offscreen picture of the bar on a dark backdrop, for tests (no blur offscreen).
     func snapshot() -> NSBitmapImageRep? {
         guard let view = panel.contentView else {
             return nil
@@ -255,7 +245,6 @@ final class Toolbar {
         panel.setFrameOrigin(CGPoint(x: center.x - panel.frame.width / 2, y: center.y))
     }
 
-    // Bottom centre of the screen, just above the Dock.
     func place(on screen: NSScreen) {
         let f = panel.frame
         panel.setFrameOrigin(CGPoint(x: screen.frame.midX - f.width / 2, y: screen.visibleFrame.minY + 14))
@@ -328,7 +317,6 @@ final class Toolbar {
         onFixPermission?()
     }
 
-    // A round swatch of an ink colour with a soft rim and highlight.
     private static func inkDot(_ color: CGColor) -> NSImage {
         NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
@@ -356,7 +344,6 @@ final class Toolbar {
         if let name = style.assetName {
             return HandAsset.thumbnail(name)
         }
-        // The laser: a red dot with a soft glow and a hot centre.
         return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let red = NSColor(cgColor: Ink.red) ?? .systemRed

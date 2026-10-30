@@ -2,10 +2,6 @@ import AppKit
 import ApplicationServices
 import SwiftUI
 
-// The Settings window's content: a sidebar of sections and a page of grouped cards.
-// Every control reads and writes Preferences directly; the model only re-renders the
-// page when a preference changes.
-
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general, pointers, appearance, drawing, sound, about
 
@@ -50,7 +46,6 @@ final class SettingsModel: ObservableObject {
     @Published var pinMessage: String?
     @Published private var revision = 0
 
-    // Shortcut handlers return false when another app already owns the combo.
     var applyToggleShortcut: ((Shortcut) -> Bool)?
     var applyClearShortcut: ((Shortcut) -> Bool)?
     var onRecording: ((Bool) -> Void)?
@@ -88,14 +83,12 @@ final class SettingsModel: ObservableObject {
     }
 
     @Published var dragging: PointerStyle?
-    // The toolbar order while a drag is in progress; saved when it ends.
     @Published private var draftOrder: [PointerStyle]?
 
     var pinnedOrder: [PointerStyle] {
         draftOrder ?? Preferences.pinnedStyles
     }
 
-    // The saved order when the current drag began.
     private(set) var baseOrder: [PointerStyle] = []
 
     func beginDrag(_ style: PointerStyle) {
@@ -253,8 +246,6 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Pages
-
 private struct GeneralPage: View {
     @ObservedObject var model: SettingsModel
 
@@ -328,21 +319,18 @@ private struct GeneralPage: View {
 private struct PointersPage: View {
     @ObservedObject var model: SettingsModel
     private let columns = [GridItem(.adaptive(minimum: 92, maximum: 110), spacing: 8)]
-    @State private var rowFrame: CGRect = .zero   // in the page's coordinate space
+    @State private var rowFrame: CGRect = .zero
     @State private var dragX: CGFloat = 0
     @State private var dragStart = 0
     @State private var floating: Floating?
-    @State private var listDropOK = false   // a pointer dragged from the list would land in the row
+    @State private var listDropOK = false
 
-    // A pointer following the mouse outside the toolbar row, while being dragged in
-    // from the list or out of the row.
     struct Floating {
         let style: PointerStyle
         let point: CGPoint
         let badge: String?
     }
 
-    // Distance between two slot positions in the toolbar row (8 slots, 6pt apart, 10pt padding).
     private var step: CGFloat {
         (rowFrame.width - 20 + 6) / CGFloat(Preferences.maxPinned)
     }
@@ -351,14 +339,10 @@ private struct PointersPage: View {
         rowFrame.insetBy(dx: -16, dy: -28).contains(p)
     }
 
-    // The slot an x position (page coordinates) lands on, for a row of `count` slots.
     private func slot(at x: CGFloat, count: Int) -> Int {
         min(max(Int((x - rowFrame.minX - 10) / step), 0), max(0, count - 1))
     }
 
-    // Dragging a pointer in the toolbar row: sideways reorders, pulling it out of the
-    // row removes it on drop. The drag lives on the row, which never moves, so its
-    // numbers stay steady while the slots slide around.
     private func rowDrag(_ value: DragGesture.Value) {
         let start = CGPoint(x: rowFrame.minX + value.startLocation.x, y: rowFrame.minY + value.startLocation.y)
         let p = CGPoint(x: rowFrame.minX + value.location.x, y: rowFrame.minY + value.location.y)
@@ -388,8 +372,6 @@ private struct PointersPage: View {
         model.setDraft(order)
     }
 
-    // Dragging a pointer from the list: over the row it opens a gap where it will go
-    // (or slides into place if it's already there); dropping anywhere else cancels.
     private func listDrag(_ style: PointerStyle, _ value: DragGesture.Value) {
         if model.dragging != style {
             model.beginDrag(style)
@@ -434,8 +416,6 @@ private struct PointersPage: View {
         }
     }
 
-    // The slot being dragged sideways sits under the mouse: its drag distance minus how
-    // far its place in the row has already moved.
     private func offset(_ style: PointerStyle) -> CGFloat {
         guard model.dragging == style, dragStart >= 0, floating == nil, let i = model.pinnedOrder.firstIndex(of: style) else {
             return 0
@@ -462,7 +442,6 @@ private struct PointersPage: View {
                 HStack(spacing: 6) {
                     ForEach(pinned, id: \.self) { style in
                         let lifted = model.dragging == style
-                        // A pointer coming in from the list follows the mouse; its slot is just a gap.
                         ToolbarSlot(style: style, model: model, lifted: lifted, gap: lifted && dragStart < 0)
                             .offset(x: offset(style))
                             .zIndex(lifted ? 1 : 0)
@@ -550,7 +529,6 @@ private struct FloatingPointer: View {
     }
 }
 
-// A pointer in the toolbar row: hover shows a remove button; drag to reorder.
 private struct ToolbarSlot: View {
     let style: PointerStyle
     @ObservedObject var model: SettingsModel
@@ -741,8 +719,6 @@ private struct AboutPage: View {
     }
 }
 
-// MARK: - Building blocks
-
 private struct SidebarRow: View {
     let section: SettingsSection
     let selected: Bool
@@ -784,7 +760,6 @@ private struct IconTile: View {
     }
 }
 
-// A rounded group of rows with thin separators between them, like System Settings.
 private struct Card<Content: View>: View {
     let title: String?
     @ViewBuilder let content: Content
@@ -918,8 +893,6 @@ private struct PillButton: View {
     }
 }
 
-// A pointer in the full list: click to add it to the toolbar. Ones already there show
-// a check, and clicking them takes them out.
 private struct PointerTile: View {
     let style: PointerStyle
     let added: Bool
@@ -1002,8 +975,6 @@ struct VisualEffect: NSViewRepresentable {
 
 private let blankIcon = NSImage(size: NSSize(width: 64, height: 64))
 
-// The pointer's picture if it's ready (they're built in the background), else a blank
-// of the same size so nothing shifts when it arrives.
 private func pointerIcon(_ style: PointerStyle) -> NSImage? {
     guard let name = style.assetName else {
         return Toolbar.icon(for: style)

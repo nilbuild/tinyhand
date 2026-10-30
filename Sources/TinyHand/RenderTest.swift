@@ -1,9 +1,5 @@
 import AppKit
 
-// Offscreen render for checking every pointer style without a GUI: one panel per
-// style, each aimed at the same target and held down mid-stroke, so the fingertip
-// (or dot) should sit on the yellow marker at the end of the ink. Invoked via:
-//   TinyHand --render-test <out.png>
 enum RenderTest {
     static func run(outPath: String) {
         _ = NSApplication.shared
@@ -30,7 +26,6 @@ enum RenderTest {
 
             let view = ArmView(frame: NSRect(origin: .zero, size: panel))
             view.setStyle(style)
-            // TH_RESTING=1 renders the pointer at rest: not pressed, no ink.
             let resting = ProcessInfo.processInfo.environment["TH_RESTING"] != nil
             if !resting {
                 view.press()

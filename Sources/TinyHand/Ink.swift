@@ -1,8 +1,5 @@
 import AppKit
 
-// Annotation ink drawn from the fingertip while the pointer is held down. Each
-// stroke is one CAShapeLayer, smoothed through the midpoints of the sampled
-// points. Strokes fade out a few seconds after they end unless `keep` is on.
 final class Ink {
     let layer = CALayer()
     var keep: Bool { Preferences.fadeSeconds <= 0 }
@@ -34,7 +31,6 @@ final class Ink {
         s.lineWidth = width
         s.lineCap = .round
         s.lineJoin = .round
-        // Ink sits on the glass, so only a hairline of shadow.
         s.shadowColor = NSColor.black.cgColor
         s.shadowOpacity = 0.18
         s.shadowRadius = 1.5

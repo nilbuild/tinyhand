@@ -1,35 +1,17 @@
 import AppKit
 
-// A session-level CGEventTap that SWALLOWS mouse clicks while the hand is active,
-// so tapping is purely cosmetic — it never focuses, activates, or presses anything
-// underneath. It reports down/up (sound + tap animation) and left drags (ink).
-// Mouse *moves* are left alone, so the hand still follows the pointer.
-//
-// A press made while the interact key (e.g. ⌥) is held goes through for real, with
-// that key taken off, so it lands as a plain click, drag or right-click.
-//
-// macOS holds back ALL mouse input until a tap's callback returns, so the tap runs
-// on its own thread: a busy or stalled main thread can never freeze clicks system
-// wide. The callback only decides; the work (sound, ink) runs on the main thread.
-//
-// Requires Accessibility permission (an active tap that can drop events).
 final class InputTap {
     var onMouseDown: (() -> Void)?
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
-    // A press that went through for real (e.g. opening a menu), with its location.
     var onPassThroughPress: ((CGPoint) -> Void)?
 
-    // Shared with the tap thread.
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
     private var _interactPress = false
 
-    // Presses that start in these rects (CG global coords, top-left origin) reach
-    // the app underneath for real: our toolbar and menu bar icon. Follow-up drags
-    // and the release go the same way as the press that started them.
     var passThroughRects: [CGRect] {
         get { lock.withLock { _passThroughRects } }
         set { lock.withLock { _passThroughRects = newValue } }
@@ -39,24 +21,20 @@ final class InputTap {
         lock.withLock { _active }
     }
 
-    // Modifier that makes presses real while held; empty turns it off.
     var interactKey: CGEventFlags {
         get { lock.withLock { _interactKey } }
         set { lock.withLock { _interactKey = newValue } }
     }
 
-    // True from a real (interact) press until its release, even if the key is let go.
     var interactPressing: Bool {
         lock.withLock { _interactPress }
     }
 
-    private var passingThrough = false // tap thread only
-    // Longest wait (ms) between an event being created and reaching this tap, for tests.
+    private var passingThrough = false
     private(set) var maxWaitMs: Double = 0
     private var tap: CFMachPort?
     private var thread: Thread?
 
-    // true once the tap is installed; false if Accessibility was denied.
     private(set) var isInstalled = false
 
     @discardableResult
@@ -124,7 +102,6 @@ final class InputTap {
         CGEvent.tapEnable(tap: tap, enable: value)
     }
 
-    // Drives the real handler with a synthetic event, without touching the system.
     func simulate(_ type: CGEventType) {
         guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: .zero, mouseButton: .left) else {
             return
@@ -139,7 +116,6 @@ final class InputTap {
         maxWaitMs = 0
     }
 
-    // Runs on the tap thread. Decide and return at once.
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if event.timestamp > 0 {
             let wait = Double(DispatchTime.now().uptimeNanoseconds &- event.timestamp) / 1_000_000
@@ -198,15 +174,11 @@ final class InputTap {
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             DispatchQueue.main.async { [weak self] in self?.onMouseDown?() }
-            return nil // swallow — no real click happens
+            return nil
         case .leftMouseUp, .rightMouseUp, .otherMouseUp:
             DispatchQueue.main.async { [weak self] in self?.onMouseUp?() }
             return nil
         case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
-            // Don't swallow drags: the cursor's position is updated from these very
-            // events, so dropping them freezes the cursor while the button is held.
-            // Pass them on as plain moves instead, so the cursor keeps moving but
-            // nothing underneath sees a drag (no text selection, no window drag).
             if type == .leftMouseDragged {
                 DispatchQueue.main.async { [weak self] in self?.onLeftDragged?() }
             }

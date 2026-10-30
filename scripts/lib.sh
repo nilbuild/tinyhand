@@ -1,5 +1,4 @@
 #!/bin/bash
-# Shared by build-app.sh and release.sh.
 
 APP_NAME="TinyHand"
 BUNDLE_ID="com.kamranahmed.tinyhand"
@@ -8,11 +7,8 @@ FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
 SPARKLE_PUBLIC_KEY="FWubybHeS/qieOQ9ITnuaIcIpFXz/TPEWPLA7P2C5Yw="
 SPARKLE_VERSION="2.10.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# CI sets TINYHAND_VERSION from the git tag; locally it comes from ./VERSION.
 VERSION="${TINYHAND_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
 
-# Never swap the binary under a running copy: macOS can then treat that process as
-# untrusted, and its Accessibility permission stops working.
 quit_running_app() {
     if pgrep -x "$APP_NAME" >/dev/null; then
         echo "Quitting the running $APP_NAME first..."
@@ -23,9 +19,6 @@ quit_running_app() {
     fi
 }
 
-# make_bundle <binary> <app path> <build number> [--with-updates]
-# Only release builds get the update feed: a dev build (build number 0) would
-# otherwise offer to replace itself with every published release.
 make_bundle() {
     local binary="$1" app="$2" build="$3" updates="${4:-}"
     local update_keys=""
@@ -44,7 +37,6 @@ make_bundle() {
     cp "$ROOT"/assets/sounds/tap_*.wav "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
     cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
 
-    # Sparkle (auto-updates), from the universal xcframework SwiftPM downloaded.
     local fw
     fw="$(find "$ROOT/.build/artifacts" -path "*macos-arm64_x86_64/Sparkle.framework" -maxdepth 6 | head -1)"
     mkdir -p "$app/Contents/Frameworks"
@@ -87,8 +79,6 @@ $update_keys
 PLIST
 }
 
-# sign_app <app path> <identity> [--timestamp]
-# Inside-out, as Sparkle documents: its helpers, the framework, then the app.
 sign_app() {
     local app="$1" identity="$2" ts="${3:-}"
     local fw="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
@@ -103,7 +93,6 @@ sign_app() {
     codesign --verify --deep --strict "$app"
 }
 
-# Sparkle's command line tools (sign_update), downloaded once into .build.
 sparkle_tools() {
     local dir="$ROOT/.build/sparkle-tools-$SPARKLE_VERSION"
     if [[ ! -x "$dir/bin/sign_update" ]]; then

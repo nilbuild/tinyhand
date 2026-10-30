@@ -1,9 +1,5 @@
 name: Release
 
-# Push a tag like v1.2.0 to build, sign, notarize and publish a release (notes come
-# from the annotated tag's message), with the appcast that installed copies check for
-# updates. Run it by hand to get a signed, notarized DMG as a workflow artifact
-# without publishing anything.
 on:
   push:
     tags: ['v*']
@@ -80,9 +76,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # appcast.xml on the newest release is what installed copies check for updates.
           gh release create "$GITHUB_REF_NAME" \
             "dist/release/TinyHand-$VERSION.dmg" "dist/release/TinyHand-$VERSION.dmg.sha256" \
+            dist/release/TinyHand.dmg \
             dist/release/appcast.xml \
             --title "TinyHand $VERSION" --notes "$RELEASE_NOTES"
 

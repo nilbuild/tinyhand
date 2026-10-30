@@ -12,7 +12,6 @@ let package = Package(
             name: "TinyHand",
             dependencies: [.product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/TinyHand",
-            // Sparkle.framework is copied into TinyHand.app/Contents/Frameworks.
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         )
     ]

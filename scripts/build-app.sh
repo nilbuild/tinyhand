@@ -1,7 +1,4 @@
 #!/bin/bash
-# Local build: dist/TinyHand.app for the current Mac, signed with your Apple
-# Development identity (a stable identity keeps the Accessibility grant across
-# rebuilds). For a distributable build, use release.sh.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"

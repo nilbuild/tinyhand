@@ -1,6 +1,5 @@
 import AppKit
 
-// The tap sounds the user can pick from (assets/sounds/tap_<name>.wav).
 enum TapSoundChoice: String, CaseIterable {
     case thock, click, pop, wood, boop, squeak
 
@@ -16,8 +15,6 @@ enum TapSoundChoice: String, CaseIterable {
     }
 }
 
-// The screen-tap sound: the one picked in Settings, else a system sound so there's
-// always something. One reused instance per sound keeps rapid taps low-latency.
 final class TapSound {
     private var sound: NSSound?
     private var loadedChoice: TapSoundChoice?
@@ -28,7 +25,6 @@ final class TapSound {
         load(choice)
     }
 
-    // Switches to another sound if it changed.
     func load(_ choice: TapSoundChoice) {
         guard choice != loadedChoice else {
             return
@@ -65,8 +61,6 @@ final class TapSound {
         return nil
     }
 
-    // The first play spins up the audio device (~100 ms). Do that silently so the
-    // first real tap is instant.
     private func warmUp() {
         guard let sound = sound else {
             return

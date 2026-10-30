@@ -1,18 +1,37 @@
-// TinyHand in the browser: the toy pointer on a stick, held from below a "screen"
-// element, that follows the mouse, taps with a thock and draws ink that fades.
-// It mirrors the Mac app: the grip leans right of the cursor and follows lazily,
-// the stick stretches so the fingertip lands on the cursor, the hand shrinks a
-// little while pressed, and a toolbar switches pointers. With no mouse (or on touch) it
-// plays a short scripted demo over elements marked data-target, unless autoplay is off.
-//
-//   TinyHandDemo.mount(document.querySelector('.screen'), { base: '' })
 (function () {
   const HANDS = [
-    { id: 'lavender', name: 'Lavender toy', src: 'assets/hands/lavender.png', w: 257, h: 380, tip: [95.2, 12.0], wrist: [127.6, 368.7], stick: ['#3a3a3e', '#121214', '#000000'] },
-    { id: 'glove', name: 'Cursor glove', src: 'assets/hands/glove.png', w: 254, h: 380, tip: [93.7, 12.3], wrist: [128.1, 368.3], stick: ['#3a3a3e', '#121214', '#000000'] },
-    { id: 'coral', name: 'Coral vinyl', src: 'assets/hands/coral.png', w: 323, h: 380, tip: [106.4, 20.2], wrist: [157.1, 363.3], stick: ['#ffffff', '#e7e3df', '#c9c3bd'] },
-    { id: 'plush', name: 'Plush', src: 'assets/hands/plush.png', w: 309, h: 380, tip: [112.0, 20.4], wrist: [146.2, 362.9], stick: ['#f1dcb6', '#d6b383', '#a9824f'] },
-    { id: 'robot', name: 'Robot', src: 'assets/hands/robot.png', w: 350, h: 380, tip: [120.9, 20.3], wrist: [183.4, 363.3], stick: ['#e2e5e8', '#b6bbc1', '#7d838a'] },
+    {id: 'lavender', name: 'Lavender toy', src: 'assets/hands/lavender.png', w: 257, h: 380, tip: [95.3, 12.0], wrist: [127.8, 368.6], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'glove', name: 'Cursor glove', src: 'assets/hands/glove.png', w: 254, h: 380, tip: [93.9, 12.3], wrist: [128.3, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'coral', name: 'Coral vinyl', src: 'assets/hands/coral.png', w: 317, h: 380, tip: [100.6, 11.4], wrist: [153.9, 369.2], stick: ['#ffffff', '#e7e3df', '#c9c3bd'], ink: '#ff2a1f'},
+    {id: 'plush', name: 'Plush', src: 'assets/hands/plush.png', w: 303, h: 380, tip: [106.4, 11.0], wrist: [142.3, 369.6], stick: ['#f1dcb6', '#d6b383', '#a9824f'], ink: '#2f86f0'},
+    {id: 'robot', name: 'Robot', src: 'assets/hands/robot.png', w: 345, h: 380, tip: [116.1, 11.8], wrist: [181.3, 368.8], stick: ['#e2e5e8', '#b6bbc1', '#7d838a'], ink: '#16a87a'},
+    {id: 'pink', name: 'Bubblegum', src: 'assets/hands/pink.png', w: 245, h: 380, tip: [87.8, 12.4], wrist: [122.5, 368.2], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#ee4f98'},
+    {id: 'blue', name: 'Sky', src: 'assets/hands/blue.png', w: 251, h: 380, tip: [90.4, 12.4], wrist: [125.7, 368.2], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#2f86f0'},
+    {id: 'mint', name: 'Mint', src: 'assets/hands/mint.png', w: 255, h: 380, tip: [94.5, 12.3], wrist: [128.6, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#16a87a'},
+    {id: 'lemon', name: 'Lemon', src: 'assets/hands/lemon.png', w: 251, h: 380, tip: [92.1, 12.3], wrist: [125.5, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#f2b705'},
+    {id: 'black', name: 'Midnight', src: 'assets/hands/black.png', w: 244, h: 380, tip: [81.1, 12.3], wrist: [121.9, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#1d1d21'},
+    {id: 'chrome', name: 'Chrome', src: 'assets/hands/chrome.png', w: 251, h: 380, tip: [87.2, 12.3], wrist: [124.1, 368.4], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#6b7380'},
+    {id: 'holo', name: 'Holo', src: 'assets/hands/holo.png', w: 239, h: 380, tip: [85.5, 12.6], wrist: [116.4, 368.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'fuzzy', name: 'Fuzzy', src: 'assets/hands/fuzzy.png', w: 255, h: 380, tip: [93.9, 12.3], wrist: [128.7, 368.4], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'wood', name: 'Wood', src: 'assets/hands/wood.png', w: 250, h: 380, tip: [92.7, 12.2], wrist: [127.2, 368.4], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#9a5e2c'},
+    {id: 'marble', name: 'Marble', src: 'assets/hands/marble.png', w: 253, h: 380, tip: [89.8, 12.4], wrist: [127.4, 368.2], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#6b7380'},
+    {id: 'terrazzo', name: 'Terrazzo', src: 'assets/hands/terrazzo.png', w: 254, h: 380, tip: [89.1, 12.5], wrist: [123.4, 368.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#f0561d'},
+    {id: 'glass', name: 'Glass', src: 'assets/hands/glass.png', w: 251, h: 380, tip: [88.3, 12.8], wrist: [128.6, 367.9], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#1597e5'},
+    {id: 'jelly', name: 'Jelly', src: 'assets/hands/jelly.png', w: 247, h: 380, tip: [88.4, 12.8], wrist: [121.1, 367.9], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#a33fe6'},
+    {id: 'pastel', name: 'Pastel', src: 'assets/hands/pastel.png', w: 252, h: 380, tip: [91.9, 12.3], wrist: [127.9, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#ee4f98'},
+    {id: 'pixel', name: 'Pixel', src: 'assets/hands/pixel.png', w: 261, h: 380, tip: [105.7, 11.6], wrist: [131.0, 369.0], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#1d1d21'},
+    {id: 'lowpoly', name: 'Low poly', src: 'assets/hands/lowpoly.png', w: 251, h: 380, tip: [89.3, 12.3], wrist: [125.3, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'knit', name: 'Knit', src: 'assets/hands/knit.png', w: 243, h: 380, tip: [89.0, 12.6], wrist: [117.2, 368.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#8754f2'},
+    {id: 'skeleton', name: 'Skeleton', src: 'assets/hands/skeleton.png', w: 241, h: 380, tip: [84.8, 13.6], wrist: [123.1, 367.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#9a5e2c'},
+    {id: 'astro', name: 'Astronaut', src: 'assets/hands/astro.png', w: 241, h: 380, tip: [88.9, 12.0], wrist: [121.3, 368.7], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#2f86f0'},
+    {id: 'space', name: 'Space', src: 'assets/hands/space.png', w: 246, h: 380, tip: [86.8, 12.3], wrist: [122.6, 368.4], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#ff2a1f'},
+    {id: 'monster', name: 'Monster', src: 'assets/hands/monster.png', w: 255, h: 380, tip: [96.5, 11.5], wrist: [122.8, 369.1], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#3e9e2e'},
+    {id: 'water', name: 'Water', src: 'assets/hands/water.png', w: 251, h: 380, tip: [89.3, 12.7], wrist: [128.5, 368.0], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#1597e5'},
+    {id: 'lava', name: 'Lava', src: 'assets/hands/lava.png', w: 249, h: 380, tip: [86.0, 12.7], wrist: [122.7, 368.0], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#f0561d'},
+    {id: 'grass', name: 'Grass', src: 'assets/hands/grass.png', w: 247, h: 380, tip: [88.9, 11.9], wrist: [123.0, 368.7], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#3e9e2e'},
+    {id: 'cactus', name: 'Cactus', src: 'assets/hands/cactus.png', w: 225, h: 380, tip: [89.4, 12.6], wrist: [119.6, 368.0], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#3e9e2e'},
+    {id: 'choco', name: 'Chocolate', src: 'assets/hands/choco.png', w: 243, h: 380, tip: [86.7, 12.4], wrist: [119.7, 368.2], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#9a5e2c'},
+    {id: 'cloud', name: 'Cloud', src: 'assets/hands/cloud.png', w: 255, h: 380, tip: [90.6, 12.3], wrist: [127.3, 368.3], stick: ['#3a3a3e', '#121214', '#000000'], ink: '#2f86f0'},
   ];
   const PURPLE = '#8754f2';
   const RED = '#ff2a1f';
@@ -65,22 +84,28 @@
     const ctx = canvas.getContext('2d');
 
     const images = {};
-    HANDS.forEach(h => {
-      const img = new Image();
-      img.src = opts.base + h.src;
-      images[h.id] = img;
-    });
+    function image(id) {
+      if (!images[id]) {
+        const hand = HANDS.find(h => h.id === id);
+        const img = new Image();
+        img.onload = () => { dirty = true; };
+        img.src = opts.base + hand.src;
+        images[id] = img;
+      }
+      return images[id];
+    }
 
     let style = HANDS.some(h => h.id === opts.start) ? opts.start : 'lavender';
+    let dirty = true;
     let soundOn = { hands: true, laser: false };
     let W = 0, H = 0, dpr = 1;
-    let cursor = null;          // where the fingertip is, in stage px
+    let cursor = null;
     let gripX = null;
     let held = false;
     let pressAmount = 0;
-    let lastReal = 0;           // last real mouse activity
+    let lastReal = 0;
     let downAt = null;
-    let current = null;         // stroke being drawn
+    let current = null;
     const strokes = [];
     let audio = null, buffer = null;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -97,7 +122,6 @@
       new ResizeObserver(resize).observe(stage);
     }
 
-    // Sound: decoded on the first real interaction (browsers require one).
     function ensureAudio() {
       if (audio) {
         return;
@@ -118,7 +142,6 @@
       src.start();
     }
 
-    // Toolbar, like the app's: pointers, laser, sound.
     let toolbar = null, soundBtn = null;
     if (opts.toolbar) {
       toolbar = document.createElement('div');
@@ -169,20 +192,23 @@
     }
     syncToolbar();
 
-    // Real mouse input.
     function local(e) {
       const r = stage.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
+    const source = opts.global ? window : stage;
+    const liveEl = opts.global ? document.documentElement : stage;
+    const passSelector = opts.global ? 'a, button, input, select, textarea, label, [data-pass]' : '[data-pass]';
+    let enabled = opts.active !== false;
     function onToolbar(e) {
-      return (toolbar && toolbar.contains(e.target)) || Boolean(e.target.closest && e.target.closest('[data-pass]'));
+      return (toolbar && toolbar.contains(e.target)) || Boolean(e.target.closest && e.target.closest(passSelector));
     }
-    stage.addEventListener('pointermove', e => {
-      if (e.pointerType !== 'mouse') {
+    source.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse' || !enabled) {
         return;
       }
       lastReal = performance.now();
-      stage.classList.add('th-live');
+      liveEl.classList.add('th-live');
       cursor = local(e);
       if (downAt && !onToolbar(e)) {
         extend(cursor);
@@ -199,8 +225,8 @@
         cursor = null;
       }
     });
-    stage.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'mouse' || onToolbar(e)) {
+    source.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || !enabled || onToolbar(e)) {
         return;
       }
       e.preventDefault();
@@ -214,11 +240,30 @@
         release();
       }
     });
-    stage.addEventListener('click', e => {
-      if (!onToolbar(e) && stage.classList.contains('th-live')) {
-        e.preventDefault(); // taps are cosmetic, like in the app
+    source.addEventListener('click', e => {
+      if (enabled && !onToolbar(e) && liveEl.classList.contains('th-live')) {
+        e.preventDefault();
       }
     }, true);
+
+    function activate(e) {
+      enabled = true;
+      ensureAudio();
+      lastReal = performance.now();
+      cursor = e ? local(e) : cursor;
+      gripX = null;
+      liveEl.classList.add('th-live');
+      dirty = true;
+    }
+    function deactivate() {
+      enabled = false;
+      release();
+      cursor = null;
+      strokes.length = 0;
+      liveEl.classList.remove('th-live');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
 
     function press(p) {
       held = true;
@@ -231,7 +276,8 @@
         if (Math.hypot(p.x - downAt.x, p.y - downAt.y) < 4) {
           return;
         }
-        current = { pts: [downAt], color: style === 'laser' ? RED : (opts.ink || PURPLE), ended: 0 };
+        const hand = HANDS.find(h => h.id === style);
+        current = { pts: [downAt], color: style === 'laser' ? RED : (opts.ink || (hand && hand.ink) || PURPLE), ended: 0 };
         strokes.push(current);
       }
       const last = current.pts[current.pts.length - 1];
@@ -248,7 +294,6 @@
       }
     }
 
-    // Scripted demo, for touch screens and idle visitors.
     const demo = { t: 0, steps: [], i: 0, from: null };
     function targets() {
       const r = stage.getBoundingClientRect();
@@ -324,7 +369,6 @@
       }
     }
 
-    // Drawing.
     function drawInk(now) {
       const width = Math.max(3, Math.min(6, H * 0.008));
       for (let i = strokes.length - 1; i >= 0; i--) {
@@ -378,7 +422,7 @@
 
     function drawHand(dt) {
       const hand = HANDS.find(h => h.id === style);
-      const img = images[style];
+      const img = image(style);
       if (!img.complete || !img.naturalWidth) {
         return;
       }
@@ -394,7 +438,6 @@
       const wrist = { x: cursor.x + dx * Math.cos(rot) - dy * Math.sin(rot), y: cursor.y + dx * Math.sin(rot) + dy * Math.cos(rot) };
 
       const sw = Math.max(4, handH * 0.07);
-      // The stick: a cylinder shaded across its width.
       ctx.save();
       const nx = -(wrist.y - grip.y), ny = wrist.x - grip.x;
       const nl = Math.hypot(nx, ny) || 1;
@@ -419,13 +462,11 @@
       return Math.abs(targetX - gripX) > 0.3;
     }
 
-    // Only redraw while something is moving, and not at all while the stage is off screen.
     let visible = true;
     if (window.IntersectionObserver) {
       new IntersectionObserver(entries => { visible = entries[entries.length - 1].isIntersecting; }).observe(stage);
     }
-    let dirty = true;
-    ['pointermove', 'pointerdown', 'pointerleave'].forEach(t => stage.addEventListener(t, () => { dirty = true; }));
+    ['pointermove', 'pointerdown', 'pointerleave'].forEach(t => source.addEventListener(t, () => { dirty = true; }));
     stage.addEventListener('th-style', () => { dirty = true; });
     if (window.ResizeObserver) {
       new ResizeObserver(() => { dirty = true; }).observe(stage);
@@ -436,7 +477,7 @@
     function tick(now) {
       const dt = Math.max(0, Math.min(64, now - last));
       last = now;
-      if (!visible || document.hidden) {
+      if (!visible || document.hidden || !enabled) {
         return;
       }
       let moving = false;
@@ -476,21 +517,22 @@
       tick(now);
       requestAnimationFrame(frame);
     }
-    // Without the demo, the hand waits pointing at the first target until the mouse moves.
     if (reduce || !opts.autoplay) {
       const t = targets().find(x => x.kind === 'point');
       cursor = t ? { x: t.x + t.w * 0.5, y: t.y + t.h * 0.55 } : { x: W * 0.5, y: H * 0.45 };
     }
     requestAnimationFrame(frame);
-    // Some environments never deliver animation frames (headless renders, some
-    // embeds); keep drawing on a timer there. Real browsers stay on rAF.
     setInterval(() => {
       if (performance.now() - lastFrame > 250) {
         tick(performance.now());
       }
     }, 33);
 
-    return { setStyle, setInk: c => { opts.ink = c; }, hands: HANDS };
+    function preload() {
+      HANDS.forEach(h => image(h.id));
+    }
+
+    return { setStyle, setInk: c => { opts.ink = c; }, activate, deactivate, preload, get active() { return enabled; }, get style() { return style; }, hands: HANDS };
   }
 
   window.TinyHandDemo = { mount, hands: HANDS };

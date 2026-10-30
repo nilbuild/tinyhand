@@ -1,10 +1,5 @@
 import AppKit
 
-// End-to-end check with REAL system mouse events: activates the pointer, posts a
-// press, a drag and a release through the actual event tap, and reports whether
-// ink was drawn. A catcher window sits under the test point, so if the tap ever
-// failed to swallow a click it would land on our own window, never on another app.
-// Invoked via:  TinyHand --e2e-test
 enum E2ETest {
     private final class CatcherView: NSView {
         var clicks = 0
@@ -42,7 +37,6 @@ enum E2ETest {
 
         let saved = CGEvent(source: nil)?.location ?? .zero
         let source = CGEventSource(stateID: .hidSystemState)
-        // CG global coordinates have their origin at the top-left of the main screen.
         let start = CGPoint(x: screen.frame.midX - 150, y: screen.frame.height - screen.frame.midY)
 
         func pump(_ seconds: Double) {
@@ -90,7 +84,6 @@ enum E2ETest {
         pump(0.2)
         state("released", overlay)
 
-        // Scrolling right after drawing must reach the app underneath.
         for _ in 0..<5 {
             CGEvent(scrollWheelEvent2Source: source, units: .line, wheelCount: 1, wheel1: -2, wheel2: 0, wheel3: 0)?
                 .post(tap: .cghidEventTap)
@@ -99,7 +92,6 @@ enum E2ETest {
         pump(0.1)
         print("scroll ticks right after drawing that reached the app (of 5):", catcherView.scrolls)
 
-        // A plain click: should tap, leave no ink, and never reach the catcher.
         let before = overlay.inkStrokes
         post(.leftMouseDown, start)
         pump(0.05)
@@ -108,14 +100,11 @@ enum E2ETest {
         state("plain click", overlay)
         print("plain click added strokes:", overlay.inkStrokes - before)
 
-        // Click the toolbar's Dot button through the real tap: it must reach the button.
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
         if let c = overlay.toolbarButtonCenter(.laser) {
             let p = CGPoint(x: c.x, y: primaryH - c.y)
             post(.mouseMoved, p)
             pump(0.2)
-            // Queue both: the button tracks the mouse inside its own event loop until
-            // the release arrives, as it would under a real finger.
             post(.leftMouseDown, p)
             post(.leftMouseUp, p)
             pump(0.4)
@@ -123,8 +112,6 @@ enum E2ETest {
         print("style after clicking the toolbar's laser button:", overlay.style.rawValue)
         print("clicks that leaked to the catcher window:", catcherView.clicks)
 
-        // A stalled main thread must not hold up clicks: freeze it for 2 s while
-        // another thread clicks, then read macOS's own latency numbers for our tap.
         let clickPoint = start
         overlay.resetTapWait()
         Thread.detachNewThread {
@@ -148,7 +135,6 @@ enum E2ETest {
         print(String(format: "longest a click waited to reach the tap during the stall: %.1f ms", overlay.tapMaxWaitMs))
         print("clicks that leaked during the stall:", catcherView.clicks)
 
-        // Esc exits pointer mode.
         for down in [true, false] {
             CGEvent(keyboardEventSource: source, virtualKey: 0x35, keyDown: down)?.post(tap: .cghidEventTap)
             pump(0.1)

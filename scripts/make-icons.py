@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Builds the app icon and menu bar images.
-
-The app icon's source of truth is assets/AppIcon.icon (open it in Icon Composer).
-
-    assets/Assets.car            Liquid Glass icon for macOS 26, compiled by actool
-    assets/AppIcon.icns          flat fallback for older macOS (Finder, DMG, login items)
-    assets/icon-1024.png         the same at 1024 px, for the README
-    docs/assets/icon.png, favicon.png   for the website
-    assets/menubar_{off,on}[@2x|@3x].png   template images for the menu bar, from assets/icon
-
-Needs Xcode 26+ (actool and Icon Composer's ictool), rsvg-convert (brew install librsvg),
-Pillow, and macOS's iconutil.
-"""
 import os
 import shutil
 import subprocess
@@ -22,19 +9,15 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON_DIR = os.path.join(ROOT, "assets", "icon")
 ASSETS = os.path.join(ROOT, "assets")
-DOCS = os.path.join(ROOT, "docs", "assets")
 ICON_DOC = os.path.join(ASSETS, "AppIcon.icon")
 MIN_MACOS = "13.0"
-
 
 def svg_to_png(svg, size, out):
     subprocess.run(["rsvg-convert", "-w", str(size), "-h", str(size), "-a", "-o", out, svg], check=True)
     return Image.open(out).convert("RGBA")
 
-
 def developer_dir():
     return subprocess.run(["xcode-select", "-p"], check=True, capture_output=True, text=True).stdout.strip()
-
 
 def compile_car(tmp):
     out = os.path.join(tmp, "car")
@@ -49,9 +32,7 @@ def compile_car(tmp):
     ], check=True, stdout=subprocess.DEVNULL)
     shutil.copy(os.path.join(out, "Assets.car"), os.path.join(ASSETS, "Assets.car"))
 
-
 def app_icon(tmp):
-    # Icon Composer's own macOS rendering: the 824 px shape centred on a 1024 canvas (the macOS icon grid).
     ictool = os.path.join(developer_dir(), "..", "Applications", "Icon Composer.app", "Contents", "Executables", "ictool")
     shape = os.path.join(tmp, "shape.png")
     subprocess.run([
@@ -61,7 +42,6 @@ def app_icon(tmp):
     canvas = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
     canvas.alpha_composite(Image.open(shape).convert("RGBA"), (100, 100))
     return canvas
-
 
 def build_icns(icon, tmp):
     iconset = os.path.join(tmp, "AppIcon.iconset")
@@ -73,9 +53,7 @@ def build_icns(icon, tmp):
             icon.resize((px, px), Image.LANCZOS).save(os.path.join(iconset, name))
     subprocess.run(["iconutil", "-c", "icns", iconset, "-o", os.path.join(ASSETS, "AppIcon.icns")], check=True)
 
-
 def menubar(tmp):
-    # 18 pt template images: black + alpha, macOS tints them for light/dark menu bars.
     for state in ("off", "on"):
         svg = os.path.join(ICON_DIR, f"menubar-{state}.svg")
         for scale, suffix in ((1, ""), (2, "@2x"), (3, "@3x")):
@@ -85,21 +63,16 @@ def menubar(tmp):
             black.putalpha(img.getchannel("A"))
             black.save(os.path.join(ASSETS, f"menubar_{state}{suffix}.png"))
 
-
 def main():
     tmp = tempfile.mkdtemp()
     try:
         compile_car(tmp)
         icon = app_icon(tmp)
-        icon.save(os.path.join(ASSETS, "icon-1024.png"))
         build_icns(icon, tmp)
-        icon.resize((512, 512), Image.LANCZOS).save(os.path.join(DOCS, "icon.png"))
-        icon.resize((64, 64), Image.LANCZOS).save(os.path.join(DOCS, "favicon.png"))
         menubar(tmp)
     finally:
         shutil.rmtree(tmp)
-    print("wrote assets/Assets.car, assets/AppIcon.icns, assets/icon-1024.png, docs/assets/{icon,favicon}.png, assets/menubar_*.png")
-
+    print("wrote assets/Assets.car, assets/AppIcon.icns, assets/menubar_*.png")
 
 if __name__ == "__main__":
     main()

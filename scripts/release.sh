@@ -1,14 +1,4 @@
 #!/bin/bash
-# Release build: a universal (Apple silicon + Intel) TinyHand.app, signed with
-# Developer ID, notarized and stapled, inside a signed, notarized DMG.
-#
-#   ./scripts/release.sh                # version from ./VERSION
-#   ./scripts/release.sh --skip-notarize
-#
-# Notarization uses APPLE_ID / APPLE_PASSWORD (app-specific) / APPLE_TEAM_ID when set
-# (as in CI), otherwise the "notarytool-profile" keychain profile. Create that once with:
-#   xcrun notarytool store-credentials notarytool-profile \
-#     --apple-id <apple id> --team-id 6QG84AK9XP
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
@@ -77,8 +67,6 @@ if [[ "$SKIP_NOTARIZE" == false ]]; then
 fi
 
 echo "==> Signing the update and writing appcast.xml"
-# Sparkle checks this EdDSA signature before installing an update. The key comes
-# from SPARKLE_PRIVATE_KEY (CI) or the login keychain (account "tinyhand").
 TOOLS="$(sparkle_tools)"
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
     ENCLOSURE="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/sign_update" --ed-key-file - "$DMG")"
@@ -106,6 +94,7 @@ cat > "$OUT/appcast.xml" <<XML
 XML
 
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
+cp "$DMG" "$OUT/$APP_NAME.dmg"
 echo
 echo "Done: $DMG"
 cat "$DMG.sha256"

@@ -1,8 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
 
-// Carbon global hotkeys. Unlike event monitors / taps, RegisterEventHotKey needs
-// NO Accessibility permission, which keeps the core toggle permission-free.
 final class HotKeyCenter {
     static let shared = HotKeyCenter()
 
@@ -39,7 +37,6 @@ final class HotKeyCenter {
         )
     }
 
-    // Returns an id for `unregister`, or nil if the combo couldn't be registered.
     @discardableResult
     func register(keyCode: UInt32, modifiers: UInt32, action: @escaping () -> Void) -> UInt32? {
         let id = nextID
@@ -47,7 +44,7 @@ final class HotKeyCenter {
         handlers[id] = action
 
         var ref: EventHotKeyRef?
-        let hkID = EventHotKeyID(signature: OSType(0x54484B59), id: id) // 'THKY'
+        let hkID = EventHotKeyID(signature: OSType(0x54484B59), id: id)
         let status = RegisterEventHotKey(
             keyCode,
             modifiers,

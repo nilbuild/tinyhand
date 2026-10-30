@@ -3,12 +3,6 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-// Hides the real system cursor — even while another app (your browser) is frontmost.
-//
-// CGDisplayHideCursor alone only works while OUR app is frontmost. The private
-// CGS "SetsCursorInBackground" connection property lifts that restriction, which
-// is the whole trick that makes this usable for recording demos without stealing
-// focus. Resolved via dlsym so there is no link-time dependency on private symbols.
 enum CursorHider {
     private static var hidden = false
 
@@ -30,7 +24,6 @@ enum CursorHider {
         _ = setProp(cid, cid, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
     }
 
-    // Hide/show use a balanced counter, so guard against double calls.
     static func hide() {
         guard !hidden else {
             return
@@ -65,14 +58,6 @@ enum CursorHider {
         return unsafeBitCast(sym, to: Seed.self)
     }()
 
-    // The cursor can come back on its own: some apps (terminals with their I-beam,
-    // for one) set it themselves, and a single hide often doesn't take straight away
-    // (measured: still visible 0.4 s later). macOS can't tell us whether it's
-    // visible, so hide again whenever any app changes the cursor (the cursor seed
-    // moves), every 50 ms for the first second after hiding, and once a second after. Extra hides are balanced
-    // in show(), and extra shows can't push the count below zero.
-    // `fighting` is for places that keep forcing the cursor back, like the Dock
-    // while its hover labels and magnification are active: re-hide every ~30 ms.
     static func reassert(fighting: Bool = false) {
         guard hidden else {
             return
@@ -90,12 +75,6 @@ enum CursorHider {
     }
 }
 
-// Where the Dock's icons are, from the Dock's accessibility tree (works with an
-// auto-hiding Dock too). CG global coords; refreshed at most once a second.
-//
-// Asking another app over Accessibility is a blocking call that can take seconds if
-// that app is busy, so the read happens on a background queue with a short timeout
-// and the main thread only ever looks at the last known frame.
 enum DockArea {
     private static let lock = NSLock()
     private static var frame: CGRect = .null

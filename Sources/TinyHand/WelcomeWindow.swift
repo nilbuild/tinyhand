@@ -1,11 +1,8 @@
 import AppKit
 import ApplicationServices
 
-// First-run card: asks for Accessibility with one button, then flips to "Start"
-// the moment it's granted. Frameless, draggable, closes with × or Esc.
 final class WelcomeWindow: NSObject {
     var onTryIt: (() -> Void)?
-    // For the offscreen test: draw the not-yet-granted state on a trusted machine.
     var simulateUntrusted = false
 
     private final class Card: NSWindow {
@@ -52,7 +49,6 @@ final class WelcomeWindow: NSObject {
         title.stringValue = granted ? "You're all set" : "Allow Accessibility"
         subtitle.stringValue = granted ? "Press ⌃⌥H any time to start." : "So your clicks become taps, not real clicks."
         button.title = granted ? "Start" : "Open Settings"
-        // Only when it's been a while since they went to Settings and it's still off.
         tip.isHidden = granted || askedAt.map { Date().timeIntervalSince($0) < 10 } ?? true
     }
 
@@ -143,7 +139,6 @@ final class WelcomeWindow: NSObject {
         window = w
     }
 
-    // Offscreen picture of the card, for tests (no blur offscreen).
     func snapshot() -> NSBitmapImageRep? {
         if window == nil {
             build()

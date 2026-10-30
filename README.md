@@ -1,17 +1,23 @@
-<p align="center"><img src="assets/icon-1024.png" width="128" alt="TinyHand icon"></p>
+<img src="./.github/logo.png" width="80" />
 
-<h1 align="center">TinyHand</h1>
+# TinyHand
 
-<p align="center">A toy pointer for your screen recordings. A little hand on a stick follows your cursor, taps when you click, and draws when you drag.</p>
+[![Latest release](https://img.shields.io/github/v/release/nilbuild/tinyhand?display_name=tag&sort=semver&cacheSeconds=3600)](https://github.com/nilbuild/tinyhand/releases/latest)
+[![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](https://tinyhand.app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+A tiny hand on a stick that points at things on your Mac screen.
+
+<img src="./docs/assets/og.jpg" alt="TinyHand: a tiny hand for your Mac" />
+
+[![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/nilbuild/tinyhand/releases/latest/download/TinyHand.dmg)
+[![Visit website](https://img.shields.io/badge/Visit_website-ffffff?style=for-the-badge&logo=safari&logoColor=black)](https://tinyhand.app)
+
+macOS 13 or later, Apple Silicon and Intel.
 
 ## Install
 
-Download the latest `TinyHand-x.y.z.dmg` from [Releases](../../releases), open it and drag
-TinyHand to Applications. On first launch, allow **Accessibility** when macOS asks
-(System Settings → Privacy & Security → Accessibility). TinyHand needs it to turn your
-clicks into taps instead of real clicks.
-
-Requires macOS 13 or later.
+Open `TinyHand.dmg`, drag TinyHand to Applications and allow **Accessibility** when asked. It needs that to turn your clicks into taps. TinyHand updates itself.
 
 ## Use
 
@@ -24,11 +30,8 @@ Requires macOS 13 or later.
 | **⌃⌥X** | Clear the drawing |
 | **Esc** | Clear everything and turn the pointer off |
 
-While the pointer is on, a small toolbar at the bottom of the screen lets you pick a
-hand or a laser dot, mute the tap sound, or exit. It fades away while you record.
-
-Settings let you change the shortcuts, pointer size, shadow, how long drawings stay,
-tap sound, and whether TinyHand opens when you log in. TinyHand updates itself.
+While the pointer is on, a small toolbar at the bottom of the screen lets you pick one of
+32 hands or a laser dot, mute the tap sound, or exit.
 
 ## Build
 
@@ -36,6 +39,6 @@ tap sound, and whether TinyHand opens when you log in. TinyHand updates itself.
 ./scripts/build-app.sh && open dist/TinyHand.app
 ```
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for releasing and how it works.
+## License
 
-Icons by [Icons8](https://icons8.com).
+MIT. See [LICENSE](LICENSE).

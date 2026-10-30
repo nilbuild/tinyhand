@@ -2,8 +2,6 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 
-// Menu bar icon: click to turn the pointer on or off, right-click (or ⌃-click)
-// for the menu. Owns the global shortcuts and the Settings window.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let overlay = OverlayController()
@@ -28,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.onSoundChanged = { [weak self] in
             self?.refreshMenu()
         }
-        // The icon must stay clickable while the pointer swallows clicks elsewhere.
         overlay.extraPassThrough = { [weak self] in
             guard let frame = self?.statusItem.button?.window?.frame else {
                 return []
@@ -47,7 +44,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         welcome.onTryIt = { [weak self] in
             self?.overlay.activate()
         }
-        // First launch, or permission missing: guide the user through Accessibility.
         if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
             welcome.show()
         }
@@ -133,7 +129,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         permissionItem?.isHidden = AXIsProcessTrusted()
     }
 
-    // Tries the new shortcut; on failure keeps the old one working.
     private func apply(_ s: Shortcut, isToggle: Bool) -> Bool {
         unregisterHotKeys()
         let old = isToggle ? Preferences.toggleShortcut : Preferences.clearShortcut
@@ -195,7 +190,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.soundOn.toggle()
     }
 
-    // Settings needs a normal cursor and clicks, so leave pointer mode first.
     @objc private func openSettings() {
         overlay.exit()
         settings.show()
@@ -216,8 +210,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    // Opening at login is on by default. Only decided once, and only for a copy
-    // installed in Applications, so a dev build elsewhere doesn't claim the login item.
     private func enableLaunchAtLoginOnFirstRun() {
         let key = "loginItemSetUp"
         let path = Bundle.main.bundlePath
@@ -230,8 +222,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Log.write("first run: open at login = \(Preferences.launchAtLogin)")
     }
 
-    // The hand-cursor icon: outline when off, filled when on. Template images, so
-    // macOS tints them for light and dark menu bars.
     private func updateIcon() {
         let on = overlay.isActive
         let image = Bundle.main.image(forResource: on ? "menubar_on" : "menubar_off")

@@ -3,29 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TinyHand</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="A tiny hand for your Mac. It points at things on your screen. Click to tap, hold and drag to draw. Free and open source.">
-<meta property="og:title" content="TinyHand">
-<meta property="og:description" content="A tiny hand for your Mac. It points at things on your screen. Click to tap, hold and drag to draw.">
-<meta property="og:image" content="https://tinyhand.app/assets/icon.png">
-<link rel="icon" href="assets/favicon.png">
-<link rel="apple-touch-icon" href="assets/icon.png">
+<title>TinyHand: a tiny hand pointer for your Mac</title>
+<meta name="description" content="TinyHand puts a toy hand on a stick on your Mac screen. It points at things, taps when you click and draws when you drag. Great for screen recordings, demos and calls. Free, open source, 33 pointers.">
+<meta name="keywords" content="mac pointer, cursor highlighter, screen recording, presentation pointer, laser pointer, draw on screen, macOS, demo videos">
+<meta name="author" content="Kamran Ahmed">
+<meta name="theme-color" content="#e9cfb4">
+<link rel="canonical" href="https://tinyhand.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TinyHand">
+<meta property="og:url" content="https://tinyhand.app/">
+<meta property="og:title" content="TinyHand: a tiny hand for your Mac">
+<meta property="og:description" content="A toy hand on a stick that points at things on your screen. Click to tap, hold and drag to draw. Free and open source.">
+<meta property="og:image" content="https://tinyhand.app/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="TinyHand: a tiny hand for your Mac, with two hand pointers on sticks over sand dunes">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@nilbuild">
+<meta name="twitter:creator" content="@nilbuild">
+<meta name="twitter:title" content="TinyHand: a tiny hand for your Mac">
+<meta name="twitter:description" content="A toy hand on a stick that points at things on your screen. Click to tap, hold and drag to draw. Free and open source.">
+<meta name="twitter:image" content="https://tinyhand.app/assets/og.jpg">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "TinyHand",
+  "description": "A toy hand on a stick that points at things on your Mac screen. Click to tap, hold and drag to draw.",
+  "url": "https://tinyhand.app/",
+  "image": "https://tinyhand.app/assets/mark-512.png",
+  "screenshot": "https://tinyhand.app/assets/og.jpg",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "macOS 13 or later",
+  "softwareVersion": "1.0.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "downloadUrl": "https://github.com/nilbuild/tinyhand/releases/latest/download/TinyHand.dmg",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Kamran Ahmed", "url": "https://kamran.fyi" }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <style>
-/* One calm painted desert as the first screen (and the hand's stage), with a narrow centered column of text. */
 :root {
-  --bg: #fbf0d6;
-  --fg: #4a2f1d;
-  --muted: #8a6a50;
-  --line: rgba(74, 47, 29, 0.1);
-  --btn: #c9622f;
-  --btn-fg: #fff7e6;
-  --ghost: rgba(255, 249, 235, 0.75);
-  --glass: rgba(255, 249, 235, 0.9);
-  --col: 620px;
+  --bg: #e9cfb4;
+  --fg: #3a2417;
+  --muted: #6e5040;
+  --line: rgba(58, 36, 23, 0.1);
+  --btn: #3a2417;
+  --btn-fg: #fdf2e6;
+  --ghost: rgba(255, 245, 235, 0.6);
+  --glass: rgba(255, 244, 232, 0.62);
+  --col: 1080px;
   --sans: "Geist", system-ui, -apple-system, sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: light;
@@ -35,40 +67,56 @@ html, body { margin: 0; }
 body { background: var(--bg); color: var(--fg); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
 :focus, :focus-visible { outline: none; }
 a, button { -webkit-tap-highlight-color: transparent; }
-img { max-width: 100%; }
 .gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
 
-.stage { position: relative; overflow: hidden; height: clamp(660px, 100vh, 960px); display: flex; flex-direction: column; }
-.art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 100%; display: block; }
-.spot { position: absolute; pointer-events: none; }
+.stage { position: relative; overflow: hidden; height: clamp(680px, 96vh, 960px); display: flex; flex-direction: column; padding-bottom: 84px; }
+.art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.rest { position: absolute; right: 13%; bottom: 30%; width: 2px; height: 2px; pointer-events: none; }
+@media (max-width: 640px) { .rest { right: 12%; bottom: 25%; } }
 
-.nav { position: relative; z-index: 3; width: 100%; max-width: var(--col); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding-block: calc(22px + env(safe-area-inset-top, 0px)) 22px; }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; color: inherit; text-decoration: none; }
-.brand img { width: 26px; height: 26px; }
+.nav { position: relative; z-index: 3; width: 100%; max-width: var(--col); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding-block: 22px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; color: inherit; text-decoration: none; }
+.mark { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(#fff3e9, #ffd8c0); display: grid; place-items: center; box-shadow: 0 3px 8px rgba(120, 60, 30, .22), inset 0 0 0 1px rgba(255, 255, 255, .7); flex: none; }
+.mark img { height: 25px; transform: rotate(-12deg); }
 .links { display: flex; gap: 2px; margin-right: -8px; }
-.links a { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: inherit; }
+.links a { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: inherit; }
 .links a:hover { background: var(--line); }
-.links svg { width: 17px; height: 17px; fill: currentColor; }
+.links svg { width: 18px; height: 18px; fill: currentColor; }
 
-.intro { position: relative; z-index: 3; width: 100%; max-width: var(--col); margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: clamp(40px, 10vh, 112px); }
-.eyebrow { margin: 0; font: 400 12px var(--mono); color: var(--muted); }
-h1 { margin: 0; font-weight: 700; font-size: clamp(38px, 6.2vw, 62px); line-height: 1.04; letter-spacing: -.04em; text-wrap: balance; }
+.intro { position: relative; z-index: 3; margin: auto; padding: 42px 32px 36px; max-width: 560px; width: calc(100% - 40px); border-radius: 26px; background: var(--glass); backdrop-filter: blur(18px) saturate(1.1); -webkit-backdrop-filter: blur(18px) saturate(1.1); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.eyebrow { margin: 0; font: 400 12.5px var(--mono); color: var(--muted); }
+h1 { margin: 0; font-weight: 600; font-size: clamp(36px, 5.6vw, 56px); line-height: 1.03; letter-spacing: -.035em; text-wrap: balance; }
 .lede { margin: 0; max-width: 34ch; font-size: 18px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
 .ctas { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
-.btn { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 20px; border-radius: 999px; text-decoration: none; font-weight: 500; font-size: 15px; transition: transform .15s ease; }
+.btn { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 20px; border-radius: 12px; text-decoration: none; font-weight: 500; font-size: 15px; transition: transform .15s ease; }
 .btn:hover { transform: translateY(-1px); }
 .btn svg { width: 16px; height: 16px; fill: currentColor; }
 .btn.main { background: var(--btn); color: var(--btn-fg); }
 .btn.main svg { width: 15px; height: 15px; margin-top: -2px; }
 .btn.ghost { color: var(--fg); background: var(--ghost); }
+.ver { margin: -2px 0 0; font: 400 11.5px var(--mono); color: var(--muted); }
 
-.picker { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 2px; padding: 5px; border-radius: 14px; background: var(--glass); box-shadow: 0 6px 20px -8px rgba(74, 47, 29, .25); }
-.picker button { all: unset; cursor: pointer; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; }
-.picker button:hover, .picker button:focus-visible, .picker button[aria-pressed="true"] { background: var(--line); }
-.picker img { width: 27px; height: 27px; object-fit: contain; pointer-events: none; }
-.picker .laser { width: 10px; height: 10px; border-radius: 50%; background: #ff2a1f; box-shadow: 0 0 10px 2px rgba(255,42,31,.4); }
+.picker { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: 20px; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 15px; background: rgba(40, 24, 16, .78); border: .5px solid rgba(255, 240, 225, .1); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 24px -10px rgba(58, 36, 23, .35); }
+.picker button { all: unset; cursor: pointer; position: relative; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; }
+.picker img { width: 28px; height: 28px; object-fit: contain; pointer-events: none; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+.picker > button:hover img, .picker > button:hover .laser { transform: translateY(-3px) scale(1.14); }
+.picker > button[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 1px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #f6e6d6; }
+.picker .sep { width: 1px; height: 22px; margin: 0 6px 0 4px; background: rgba(255, 240, 225, .18); }
+.laser { width: 10px; height: 10px; border-radius: 50%; background: #ff2a1f; box-shadow: 0 0 10px 2px rgba(255, 42, 31, .4); transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+.picker .count { width: auto; height: 30px; margin-right: 3px; padding: 0 12px; border-radius: 9px; font: 500 12px var(--mono); color: #f6e6d6; white-space: nowrap; background: rgba(255, 240, 225, .1); transition: background .15s ease; }
+.picker .count:hover, .picker .count[aria-expanded="true"] { background: rgba(255, 240, 225, .2); }
+.pop { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); width: min(452px, calc(100vw - 32px)); padding: 14px; border-radius: 18px; background: #fcf6ef; color: var(--fg); box-shadow: 0 24px 50px -20px rgba(58, 36, 23, .45), 0 0 0 .5px rgba(58, 36, 23, .16); }
+.pop[hidden] { display: none; }
+.pop-h { margin: 0 4px 10px; display: flex; justify-content: space-between; font-size: 13.5px; }
+.pop-h span { font: 400 12px var(--mono); color: var(--muted); }
+.pop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 2px; }
+.pop-grid button { width: auto; height: 46px; }
+.pop-grid button:hover { background: rgba(58, 36, 23, .06); }
+.pop-grid button:hover img { transform: translateY(-2px) scale(1.1); }
+.pop-grid button[aria-pressed="true"] { background: rgba(58, 36, 23, .1); }
+.pop-grid img { width: 32px; height: 32px; }
 
-.more { max-width: var(--col); margin: 0 auto; padding-block: 72px calc(44px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 40px; }
+.more { max-width: 720px; margin: 0 auto; padding-block: 72px 44px; display: flex; flex-direction: column; gap: 40px; }
 .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; text-align: center; }
 .three h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
 .three p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
@@ -77,114 +125,137 @@ kbd { font: 500 12px var(--mono); color: var(--fg); padding: 3px 6px; border-rad
 .foot { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; font: 400 12px var(--mono); color: var(--muted); }
 .foot a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .three { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .lede { font-size: 16.5px; }
-  .picker button { width: 34px; height: 34px; }
-  .picker img { width: 24px; height: 24px; }
+  .intro { padding: 30px 18px 26px; }
+  .picker > button { width: 34px; height: 34px; }
+  .picker > button img { width: 24px; height: 24px; }
+  .picker > [data-style="astro"], .picker > [data-style="skeleton"], .picker > [data-style="holo"] { display: none; }
+  .picker .count { padding: 0 9px; }
+  .picker .sep { margin: 0 4px 0 2px; }
 }
-@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .btn, .picker img, .laser, .picker .count { transition: none; } }
 </style>
 </head>
 <body>
 <main>
-  <section class="stage" id="stage" data-start="glove" data-ink="#c9622f">
-    <img class="art" src="assets/art/gouache.jpg" alt="A painted desert with soft dunes, small round cacti and one cloud" data-spots='[{"x":0.88,"y":0.82,"k":"point"},{"x":0.82,"y":0.22,"k":"circle","w":0.1,"h":0.07},{"x":0.5,"y":0.86,"k":"tap"}]'>
+  <section class="stage" id="stage" data-start="coral">
+    <img class="art" src="assets/art/aerial.jpg" alt="Sand dunes seen from above, with soft wave ridges">
     <div class="nav gutter">
-      <a class="brand" href="./" data-pass><img src="assets/icon.png" alt="">TinyHand</a>
+      <a class="brand" href="./" data-pass><span class="mark"><img src="assets/hands/coral.png" alt=""></span>TinyHand</a>
       <div class="links">
         <a href="https://github.com/nilbuild/tinyhand" aria-label="TinyHand on GitHub" title="GitHub" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg></a>
         <a href="https://x.com/nilbuild" aria-label="nilbuild on X" title="@nilbuild on X" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.75 3h3.07l-6.7 7.66L22 21h-6.17l-4.83-6.32L5.47 21H2.4l7.17-8.2L2 3h6.33l4.37 5.77L17.75 3Zm-1.08 16.2h1.7L7.4 4.74H5.58L16.67 19.2Z"/></svg></a>
       </div>
     </div>
-    <div class="intro gutter">
-      <p class="eyebrow">free and open source · macOS 13+</p>
+    <div class="intro">
+      <p class="eyebrow">free and open source · 33 pointers</p>
       <h1>A tiny hand for your Mac.</h1>
       <p class="lede">It points at things on your screen. Click to tap. Hold and drag to draw.</p>
       <div class="ctas">
-        <a class="btn main" href="https://github.com/nilbuild/tinyhand/releases/latest" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.9-3.5.9-.7 0-1.9-.8-3.1-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3.1.7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.5 1.3-2.6 0 0-2.5-1-2.5-3.7zM14.1 5.5c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>Download for Mac</a>
+        <a class="btn main" href="https://github.com/nilbuild/tinyhand/releases/latest/download/TinyHand.dmg" data-pass download><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.9-3.5.9-.7 0-1.9-.8-3.1-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3.1.7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.5 1.3-2.6 0 0-2.5-1-2.5-3.7zM14.1 5.5c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>Download for Mac</a>
         <a class="btn ghost" href="https://github.com/nilbuild/tinyhand" data-pass><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>View on GitHub</a>
       </div>
+      <p class="ver">Version <span id="version">1.0.0</span> · macOS 13 or later · Apple silicon and Intel</p>
     </div>
+    <span class="rest" data-target="point" aria-hidden="true"></span>
     <div class="picker" id="picker" data-pass aria-label="Pick a hand"></div>
   </section>
 
   <section class="more gutter">
     <div class="three">
       <div><h3>Point</h3><p>The hand follows your mouse.</p></div>
-      <div><h3>Tap</h3><p>Clicks make a soft tap. Nothing gets clicked.</p></div>
+      <div><h3>Tap</h3><p>Clicks make a soft tap.</p></div>
       <div><h3>Draw</h3><p>Lines fade after 3 seconds.</p></div>
     </div>
-    <p class="keys"><kbd>⌃⌥H</kbd> turns it on or off. <kbd>esc</kbd> puts it away.</p>
-    <div class="foot"><span>Made by <a href="https://x.com/nilbuild">@nilbuild</a></span><a href="https://github.com/nilbuild/tinyhand">Source on GitHub</a><span>© 2026</span></div>
+    <p class="keys"><kbd>⌃⌥H</kbd> turns it on or off. <kbd>⌃⌥X</kbd> clears the drawing.</p>
+    <div class="foot"><span>Made by <a href="https://x.com/nilbuild">@nilbuild</a></span><a href="https://github.com/nilbuild/tinyhand">Source on GitHub</a><a href="https://github.com/nilbuild/tinyhand/blob/main/LICENSE">MIT license</a><span>macOS 13 or later</span></div>
   </section>
 </main>
 
 <script src="pointer.js"></script>
 <script>
 (function () {
-  const NAMES = { coral: 'Coral', lavender: 'Lavender', glove: 'Glove', plush: 'Plush', robot: 'Robot', laser: 'Laser dot' };
+  fetch('https://api.github.com/repos/nilbuild/tinyhand/releases/latest')
+    .then(r => (r.ok ? r.json() : null))
+    .then(r => {
+      if (!r || !r.tag_name) {
+        return;
+      }
+      document.getElementById('version').textContent = r.tag_name.replace(/^v/, '');
+    })
+    .catch(() => {});
+
+  const PICKS = ['coral', 'lavender', 'glove', 'plush', 'robot', 'holo', 'astro', 'skeleton', 'laser'];
   const stage = document.getElementById('stage');
-  const img = stage.querySelector('img.art');
   const picker = document.getElementById('picker');
-
-  // Spots are in image fractions; map them through object-fit: cover and object-position.
-  function placeSpots() {
-    if (!img.naturalWidth) {
-      return;
-    }
-    const box = img.getBoundingClientRect();
-    const sr = stage.getBoundingClientRect();
-    const s = Math.max(box.width / img.naturalWidth, box.height / img.naturalHeight);
-    const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
-    const pos = getComputedStyle(img).objectPosition.split(' ').map(v => parseFloat(v) / 100);
-    const ox = (box.width - dw) * pos[0] + box.left - sr.left;
-    const oy = (box.height - dh) * pos[1] + box.top - sr.top;
-    stage.querySelectorAll('.spot').forEach(e => e.remove());
-    JSON.parse(img.dataset.spots).forEach(p => {
-      const w = (p.w || 0.03) * dw, h = (p.h || 0.04) * dh;
-      const el = document.createElement('div');
-      el.className = 'spot';
-      el.dataset.target = p.k;
-      el.style.left = (ox + p.x * dw - w / 2) + 'px';
-      el.style.top = (oy + p.y * dh - h / 2) + 'px';
-      el.style.width = w + 'px';
-      el.style.height = h + 'px';
-      stage.appendChild(el);
-    });
-  }
-
-  function start() {
-    placeSpots();
-    if (!window.TinyHandDemo) {
-      return;
-    }
-    const api = TinyHandDemo.mount(stage, { toolbar: false, autoplay: false, depthW: 0.3, start: stage.dataset.start, ink: stage.dataset.ink });
-    Object.keys(NAMES).forEach(id => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.dataset.style = id;
-      b.title = NAMES[id];
-      b.setAttribute('aria-label', NAMES[id]);
-      b.innerHTML = id === 'laser' ? '<span class="laser"></span>' : `<img src="assets/hands/${id}.png" alt="">`;
-      b.addEventListener('click', () => api.setStyle(id));
-      picker.appendChild(b);
-    });
-    const sync = id => picker.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === id)));
-    stage.addEventListener('th-style', e => sync(e.detail));
-    sync(stage.dataset.start);
-  }
-
-  let t = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(t);
-    t = setTimeout(placeSpots, 150);
-  });
-  if (img.complete && img.naturalWidth) {
-    start();
+  if (!window.TinyHandDemo) {
     return;
   }
-  img.addEventListener('load', start, { once: true });
+
+  const api = TinyHandDemo.mount(stage, { toolbar: false, autoplay: false, depthW: 0.3, start: stage.dataset.start });
+  const styles = api.hands.concat([{ id: 'laser', name: 'Laser dot' }]);
+
+  function button(hand, onPick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.style = hand.id;
+    b.title = hand.name;
+    b.setAttribute('aria-label', hand.name);
+    b.innerHTML = hand.src ? `<img src="${hand.src}" alt="">` : '<span class="laser"></span>';
+    b.addEventListener('click', () => {
+      api.setStyle(hand.id);
+      onPick();
+    });
+    return b;
+  }
+
+  PICKS.forEach(id => picker.appendChild(button(styles.find(h => h.id === id), () => {})));
+
+  const sep = document.createElement('span');
+  sep.className = 'sep';
+  picker.appendChild(sep);
+
+  const all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'count';
+  all.setAttribute('aria-expanded', 'false');
+  all.textContent = `All ${styles.length}`;
+  picker.appendChild(all);
+
+  const pop = document.createElement('div');
+  pop.className = 'pop';
+  pop.hidden = true;
+  pop.innerHTML = `<p class="pop-h"><b>${styles.length} pointers</b><span>pick one to try it</span></p><div class="pop-grid"></div>`;
+  const grid = pop.querySelector('.pop-grid');
+  styles.forEach(hand => grid.appendChild(button(hand, () => setOpen(false))));
+  picker.appendChild(pop);
+
+  function setOpen(open) {
+    pop.hidden = !open;
+    all.setAttribute('aria-expanded', String(open));
+  }
+  all.addEventListener('click', e => {
+    e.stopPropagation();
+    setOpen(pop.hidden);
+  });
+  document.addEventListener('click', e => {
+    if (pop.hidden || pop.contains(e.target)) {
+      return;
+    }
+    setOpen(false);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') {
+      return;
+    }
+    setOpen(false);
+  });
+
+  const sync = id => picker.querySelectorAll('button[data-style]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === id)));
+  stage.addEventListener('th-style', e => sync(e.detail));
+  sync(stage.dataset.start);
 })();
 </script>
 </body>

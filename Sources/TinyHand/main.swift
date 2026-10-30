@@ -7,8 +7,6 @@ if let idx = CommandLine.arguments.firstIndex(of: "--render-test") {
     exit(0)
 }
 
-// Reports whether THIS app identity holds Accessibility. Launch it the way macOS
-// launches the real app:  open -n TinyHand.app --args --ax-status <file>
 if let idx = CommandLine.arguments.firstIndex(of: "--ax-status") {
     let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/tinyhand-ax.txt"
     let mask: CGEventMask = 1 << CGEventType.leftMouseDown.rawValue
@@ -71,6 +69,5 @@ if CommandLine.arguments.contains("--click-test") {
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-// .accessory = menu-bar agent, no Dock icon, never steals focus from the browser.
 app.setActivationPolicy(.accessory)
 app.run()

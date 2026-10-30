@@ -2,17 +2,15 @@ import AppKit
 import Carbon.HIToolbox
 import ServiceManagement
 
-// A global keyboard shortcut, stored with the label shown to the user.
 struct Shortcut: Equatable {
     var keyCode: UInt32
-    var modifiers: UInt32   // Carbon modifier flags (controlKey, optionKey, …)
+    var modifiers: UInt32
     var display: String
 
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥H")
     static let clearDefault = Shortcut(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥X")
 }
 
-// The modifier held to click for real while the pointer is on.
 enum InteractKey: String, CaseIterable {
     case option, command, control, off
 
@@ -35,7 +33,6 @@ enum InteractKey: String, CaseIterable {
     }
 }
 
-// The ink colour: the pointer's own, or one the user picked.
 enum InkChoice: String, CaseIterable {
     case match, red, yellow, green, blue, white
 
@@ -50,7 +47,6 @@ enum InkChoice: String, CaseIterable {
         }
     }
 
-    // nil for .match: use the pointer's colour.
     var color: CGColor? {
         switch self {
         case .match: return nil
@@ -67,7 +63,6 @@ enum InkChoice: String, CaseIterable {
     }
 }
 
-// Settings that persist between launches. Posts `changed` whenever one is set.
 enum Preferences {
     static let changed = Notification.Name("TinyHandPreferencesChanged")
     private static let defaults = UserDefaults.standard
@@ -84,7 +79,6 @@ enum Preferences {
 
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
 
-    // On-screen hand height as a fraction of screen height.
     static var pointerSize: CGFloat {
         get { (defaults.object(forKey: "pointerSize") as? Double).map { CGFloat($0) } ?? 0.13 }
         set { set(Double(newValue), "pointerSize") }
@@ -95,7 +89,6 @@ enum Preferences {
         set { set(newValue, "showShadow") }
     }
 
-    // Seconds a stroke stays before fading; 0 keeps strokes until cleared.
     static var fadeSeconds: Double {
         get { defaults.object(forKey: "fadeSeconds") as? Double ?? 3 }
         set { set(newValue, "fadeSeconds") }
@@ -111,7 +104,6 @@ enum Preferences {
         set { set(newValue.rawValue, "tapSound") }
     }
 
-    // The laser is for quiet pointing, so it starts silent.
     static var laserSound: Bool {
         get { defaults.object(forKey: "sound.laser") as? Bool ?? false }
         set { set(newValue, "sound.laser") }
@@ -134,7 +126,6 @@ enum Preferences {
 
     static let maxPinned = 8
 
-    // Pointers shown in the toolbar, in toolbar order.
     static var pinnedStyles: [PointerStyle] {
         get {
             guard let raw = defaults.stringArray(forKey: "pinnedStyles") else {
@@ -163,7 +154,6 @@ enum Preferences {
         }
     }
 
-    // Back to first-run settings. Launch at login and Accessibility are left alone.
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "pinnedStyles", "pointerStyle",

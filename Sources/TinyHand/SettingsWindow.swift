@@ -2,21 +2,16 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-// The Settings window: a sidebar of sections (General, Pointers, Appearance, Drawing,
-// Sound, About) drawn by SettingsView. Changes apply immediately.
 final class SettingsWindow: NSObject, NSWindowDelegate {
-    // Asked to apply a recorded shortcut; returns false if it couldn't be registered.
     var applyToggleShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyToggleShortcut = applyToggleShortcut }
     }
     var applyClearShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyClearShortcut = applyClearShortcut }
     }
-    // Global shortcuts are paused while recording, so the combo being typed isn't run.
     var onRecording: ((Bool) -> Void)? {
         didSet { model.onRecording = onRecording }
     }
-    // Set when the app can update itself; adds the update options.
     var updater: Updater? {
         didSet { model.updater = updater }
     }
@@ -41,8 +36,6 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         window?.makeFirstResponder(nil)
     }
 
-    // Picture of one section, for tests: shows the window briefly and captures it, since
-    // SwiftUI scroll views don't draw offscreen.
     func snapshot(_ section: SettingsSection = .general, dark: Bool = false) -> CGImage? {
         if window == nil {
             build()
@@ -80,7 +73,6 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     }
 }
 
-// A button that shows a shortcut and records a new one when clicked.
 final class ShortcutRecorder: NSButton {
     var onChange: ((Shortcut) -> Bool)?
     var onRecording: ((Bool) -> Void)?
@@ -104,7 +96,6 @@ final class ShortcutRecorder: NSButton {
         setLabel(shortcut.display)
     }
 
-    // Shows a shortcut set elsewhere (e.g. by a reset), unless one is being recorded.
     func show(_ s: Shortcut) {
         guard monitor == nil, s != shortcut else {
             return
@@ -158,7 +149,6 @@ final class ShortcutRecorder: NSButton {
             return
         }
         let flags = event.modifierFlags.intersection([.control, .option, .command, .shift])
-        // Needs ⌃, ⌥ or ⌘, so a shortcut can't swallow a plain key everywhere.
         guard !flags.intersection([.control, .option, .command]).isEmpty else {
             NSSound.beep()
             return

@@ -1,8 +1,5 @@
 import Foundation
 
-// A small diagnostic log at ~/Library/Logs/TinyHand.log: launch, permission and
-// event-tap state, and press/drag/release counts. Enough to tell "no permission"
-// from "events not arriving" without a debugger.
 enum Log {
     private static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/TinyHand.log")
