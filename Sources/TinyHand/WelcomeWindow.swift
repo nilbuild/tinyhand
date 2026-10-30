@@ -94,9 +94,7 @@ final class WelcomeWindow: NSObject {
         w.contentView = card
 
         let icon = NSImageView()
-        icon.image = NSImage(named: "AppIcon")
-            ?? NSImage(contentsOfFile: "assets/icon-1024.png")
-            ?? NSApp.applicationIconImage
+        icon.image = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.widthAnchor.constraint(equalToConstant: 76).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 76).isActive = true

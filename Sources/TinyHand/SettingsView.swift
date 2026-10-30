@@ -75,6 +75,18 @@ final class SettingsModel: ObservableObject {
         })
     }
 
+    private var previewSound: TapSound?
+
+    func preview(_ choice: TapSoundChoice) {
+        if previewSound == nil {
+            previewSound = TapSound(choice)
+        }
+        previewSound?.load(choice)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            self?.previewSound?.play()
+        }
+    }
+
     @Published var dragging: PointerStyle?
     // The toolbar order while a drag is in progress; saved when it ends.
     @Published private var draftOrder: [PointerStyle]?
@@ -673,7 +685,22 @@ private struct SoundPage: View {
 
     var body: some View {
         Card(title: "Tap sound") {
-            Row("Hands", detail: "A soft thock on every click.") {
+            Row("Sound", detail: "Plays on every tap. Pick one to hear it.") {
+                Picker("", selection: model.binding({ Preferences.tapSound }, { choice in
+                    Preferences.tapSound = choice
+                    model.preview(choice)
+                })) {
+                    ForEach(TapSoundChoice.allCases, id: \.self) { choice in
+                        Text(choice.title).tag(choice)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+                .focusable(false)
+                PillButton(title: "Play") { model.preview(Preferences.tapSound) }
+            }
+            Row("Hands", detail: "Tap sound for the hands.") {
                 Toggle("", isOn: model.binding({ Preferences.handSound }, { Preferences.handSound = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
             }

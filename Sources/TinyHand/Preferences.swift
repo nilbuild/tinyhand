@@ -106,6 +106,11 @@ enum Preferences {
         set { set(newValue, "sound.hands") }
     }
 
+    static var tapSound: TapSoundChoice {
+        get { defaults.string(forKey: "tapSound").flatMap(TapSoundChoice.init(rawValue:)) ?? .thock }
+        set { set(newValue.rawValue, "tapSound") }
+    }
+
     // The laser is for quiet pointing, so it starts silent.
     static var laserSound: Bool {
         get { defaults.object(forKey: "sound.laser") as? Bool ?? false }
@@ -162,7 +167,7 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton"] {
+                    "inkChoice", "showInkButton", "tapSound"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

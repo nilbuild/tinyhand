@@ -3,8 +3,8 @@
     {
       "value": {
         "linear-gradient": [
-          "srgb:0.85098,0.45098,0.24314,1.00000",
-          "srgb:0.70980,0.32549,0.15686,1.00000"
+          "srgb:0.86275,0.47059,0.26275,1.00000",
+          "srgb:0.70588,0.32549,0.16471,1.00000"
         ],
         "orientation": {
           "start": {
@@ -40,11 +40,11 @@
   ],
   "groups": [
     {
-      "name": "Hand",
+      "name": "Glove",
       "layers": [
         {
-          "image-name": "hand.png",
-          "name": "hand",
+          "image-name": "glove.png",
+          "name": "glove",
           "glass": false,
           "position": {
             "scale": 1,
@@ -57,7 +57,7 @@
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.5
+        "opacity": 0.45
       },
       "translucency": {
         "enabled": false,

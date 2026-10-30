@@ -109,6 +109,7 @@ final class OverlayController {
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
             self?.armView.updateInkColor()
+            self?.tapSound.load(Preferences.tapSound)
             if let self = self, self.armView.style != PointerStyle.saved {
                 self.pick(PointerStyle.saved)
             }

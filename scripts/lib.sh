@@ -41,7 +41,7 @@ make_bundle() {
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$APP_NAME"
     cp "$ROOT"/assets/hand_*.png "$app/Contents/Resources/"
-    cp "$ROOT/assets/tap.wav" "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
+    cp "$ROOT"/assets/sounds/tap_*.wav "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
     cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
 
     # Sparkle (auto-updates), from the universal xcframework SwiftPM downloaded.
@@ -80,7 +80,7 @@ make_bundle() {
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>NSHumanReadableCopyright</key>
-    <string>© $(date +%Y) Kamran Ahmed</string>
+    <string>© $(date +%Y) Kamran Ahmed. MIT License.</string>
 $update_keys
 </dict>
 </plist>
