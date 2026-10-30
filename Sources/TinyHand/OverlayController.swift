@@ -307,7 +307,7 @@ final class OverlayController {
         let f = toolbar.frame
         let near = f.insetBy(dx: -80, dy: 0).union(f.offsetBy(dx: 0, dy: 90)).insetBy(dx: 0, dy: -10).contains(mouse)
         let needsPermission = !inputTap.isInstalled
-        let drawing = downPoint != nil
+        let drawing = armView.ink.isDrawing
         toolbar.setRevealed(!drawing && (near || Date() < revealUntil || needsPermission))
 
         if Date().timeIntervalSince(lastMenuScan) > 0.05 {
