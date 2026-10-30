@@ -439,12 +439,11 @@ private struct GeneralPage: View {
 
 private struct PointersPage: View {
     @ObservedObject var model: SettingsModel
-    private let columns = [GridItem(.adaptive(minimum: 92, maximum: 110), spacing: 8)]
     @State private var rowFrame: CGRect = .zero
     @State private var dragX: CGFloat = 0
     @State private var dragStart = 0
     @State private var floating: Floating?
-    @State private var listDropOK = false
+    @State private var picking = false
 
     struct Floating {
         let style: PointerStyle
@@ -493,63 +492,22 @@ private struct PointersPage: View {
         model.setDraft(order)
     }
 
-    private func listDrag(_ style: PointerStyle, _ value: DragGesture.Value) {
-        if model.dragging != style {
-            model.beginDrag(style)
-            dragStart = -1
-        }
-        dragX = 0
-        let p = value.location
-        let base = model.baseOrder
-        let others = base.filter { $0 != style }
-        let full = !base.contains(style) && base.count >= Preferences.maxPinned
-        floating = Floating(style: style, point: p, badge: full && overRow(p) ? "nosign" : nil)
-        guard overRow(p), !full else {
-            listDropOK = false
-            model.setDraft(base)
-            return
-        }
-        listDropOK = true
-        var order = others
-        order.insert(style, at: min(slot(at: p.x + step / 2, count: others.count + 1), others.count))
-        model.setDraft(order)
-    }
-
     private func dropDrag() {
         let removing = floating?.badge == "minus.circle.fill"
-        let fromList = dragStart < 0
         withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
             dragX = 0
-            if fromList {
-                if listDropOK {
-                    model.endDrag()
-                } else {
-                    model.cancelDrag()
-                }
-            } else if !fromList && floating != nil && !removing {
+            if floating != nil && !removing {
                 model.cancelDrag()
                 model.pinMessage = "Keep at least one pointer in the toolbar."
             } else {
                 model.endDrag()
             }
             floating = nil
-            listDropOK = false
         }
-    }
-
-    private func tile(_ style: PointerStyle, pinned: Set<PointerStyle>) -> some View {
-        PointerTile(style: style, added: pinned.contains(style), onRemove: style.isCustom ? { model.removeHand(style) } : nil) {
-            model.pin(style)
-        }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .named("pointersPage"))
-                .onChanged { listDrag(style, $0) }
-                .onEnded { _ in dropDrag() }
-        )
     }
 
     private func offset(_ style: PointerStyle) -> CGFloat {
-        guard model.dragging == style, dragStart >= 0, floating == nil, let i = model.pinnedOrder.firstIndex(of: style) else {
+        guard model.dragging == style, floating == nil, let i = model.pinnedOrder.firstIndex(of: style) else {
             return 0
         }
         return dragX - CGFloat(i - dragStart) * step
@@ -557,29 +515,32 @@ private struct PointersPage: View {
 
     var body: some View {
         let pinned = model.pinnedOrder
-        let pinnedSet = Set(Preferences.pinnedStyles)
-        VStack(alignment: .leading, spacing: 24) {
+        let full = Preferences.pinnedStyles.count >= Preferences.maxPinned
+        VStack(alignment: .leading, spacing: 30) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("In your toolbar")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("\(Preferences.pinnedStyles.count) of \(Preferences.maxPinned) · drag to reorder or out to remove")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
                     TextButton(title: "Reset") { model.resetToolbar() }
                 }
                 .padding(.horizontal, 4)
                 HStack(spacing: 6) {
                     ForEach(pinned, id: \.self) { style in
                         let lifted = model.dragging == style
-                        ToolbarSlot(style: style, model: model, lifted: lifted, gap: lifted && dragStart < 0)
+                        ToolbarSlot(style: style, model: model, lifted: lifted)
                             .offset(x: offset(style))
                             .zIndex(lifted ? 1 : 0)
-                            .transaction { if lifted && dragStart >= 0 { $0.animation = nil } }
+                            .transaction { if lifted { $0.animation = nil } }
                     }
-                    ForEach(0..<max(0, Preferences.maxPinned - pinned.count), id: \.self) { _ in
+                    if !full {
+                        AddSlot(open: $picking)
+                            .popover(isPresented: $picking, arrowEdge: .bottom) {
+                                PointerPicker(model: model) { picking = false }
+                            }
+                    }
+                    ForEach(0..<max(0, Preferences.maxPinned - pinned.count - 1), id: \.self) { _ in
                         EmptySlot()
                     }
                 }
@@ -599,39 +560,17 @@ private struct PointersPage: View {
                         .onChanged { rowDrag($0) }
                         .onEnded { _ in dropDrag() }
                 )
+                Text(full
+                     ? "The toolbar is full. Remove a pointer to add another. Drag to reorder."
+                     : "Press + to add a pointer. Drag to reorder, or out to remove.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
                 if let message = model.pinMessage {
                     Text(message).font(.system(size: 12)).foregroundColor(.red).padding(.horizontal, 4)
                 }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Your hands")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(PointerStyle.customHands, id: \.self) { style in
-                        tile(style, pinned: pinnedSet)
-                    }
-                    NewHandTile { model.startMakingHand() }
-                }
-                if let message = model.handMessage {
-                    Text(message)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 4)
-                }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("All pointers · click or drag to add")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(PointerStyle.builtInHands + [.laser], id: \.self) { style in
-                        tile(style, pinned: pinnedSet)
-                    }
-                }
-            }
+            YourHands(model: model)
         }
         .coordinateSpace(name: "pointersPage")
         .overlay(alignment: .topLeading) {
@@ -641,6 +580,197 @@ private struct PointersPage: View {
                     .allowsHitTesting(false)
             }
         }
+    }
+}
+
+private struct AddSlot: View {
+    @Binding var open: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            open.toggle()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(hovering || open ? .primary : .secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 58)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(hovering || open ? 0.09 : 0.05))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.16), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Add a pointer")
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct PointerPicker: View {
+    @ObservedObject var model: SettingsModel
+    let done: () -> Void
+    private let columns = [GridItem(.adaptive(minimum: 64, maximum: 72), spacing: 4)]
+
+    var body: some View {
+        let pinned = Set(Preferences.pinnedStyles)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    section(nil, PointerStyle.builtInHands + [.laser], pinned)
+                    if !PointerStyle.customHands.isEmpty {
+                        section("Your hands", PointerStyle.customHands, pinned)
+                    }
+                }
+                .padding(12)
+            }
+            .frame(height: 340)
+            Divider()
+            Button {
+                done()
+                model.startMakingHand()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "wand.and.stars").font(.system(size: 11))
+                    Text("Make your own hand…").font(.system(size: 12))
+                    Spacer()
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+        }
+        .frame(width: 400)
+    }
+
+    private func section(_ title: String?, _ styles: [PointerStyle], _ pinned: Set<PointerStyle>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let title = title {
+                Text(title).font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary).padding(.leading, 4)
+            }
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(styles, id: \.self) { style in
+                    PickerCell(style: style, added: pinned.contains(style)) {
+                        guard !pinned.contains(style) else {
+                            return
+                        }
+                        model.pin(style)
+                        done()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct PickerCell: View {
+    let style: PointerStyle
+    let added: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let icon = pointerIcon(style) {
+                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 42, height: 42)
+                }
+            }
+            .frame(width: 62, height: 58)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(hovering && !added ? 0.08 : 0))
+            )
+            .opacity(added ? 0.35 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(added ? "\(style.title) is already in the toolbar" : style.title)
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct YourHands: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Your hands")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                TextButton(title: "Make your own…") { model.startMakingHand() }
+            }
+            .padding(.horizontal, 4)
+            if PointerStyle.customHands.isEmpty {
+                Text("Turn any idea into a hand with ChatGPT or another image tool.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(PointerStyle.customHands, id: \.self) { style in
+                        CustomHandChip(style: style, pinned: Preferences.pinnedStyles.contains(style), add: {
+                            if !Preferences.pinnedStyles.contains(style) {
+                                model.pin(style)
+                            }
+                        }, remove: {
+                            model.removeHand(style)
+                        })
+                    }
+                }
+            }
+            if let message = model.handMessage {
+                Text(message).font(.system(size: 11)).foregroundColor(.secondary).padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+private struct CustomHandChip: View {
+    let style: PointerStyle
+    let pinned: Bool
+    let add: () -> Void
+    let remove: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon = pointerIcon(style) {
+                Image(nsImage: icon).resizable().interpolation(.high).frame(width: 24, height: 24)
+            }
+            Text(style.title).font(.system(size: 12)).lineLimit(1)
+            Button(action: remove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0)))
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .opacity(hovering ? 1 : 0)
+            .help("Delete \(style.title)")
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 6)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Color.primary.opacity(hovering && !pinned ? 0.09 : 0.05)))
+        .contentShape(Capsule())
+        .onTapGesture(perform: add)
+        .onHover { hovering = $0 }
+        .help(pinned ? "\(style.title) is in your toolbar" : "Click to add \(style.title) to the toolbar")
     }
 }
 
@@ -676,18 +806,10 @@ private struct ToolbarSlot: View {
     let style: PointerStyle
     @ObservedObject var model: SettingsModel
     let lifted: Bool
-    var gap = false
     @State private var hovering = false
 
     var body: some View {
-        if gap {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.12))
-                .frame(maxWidth: .infinity)
-                .frame(height: 58)
-        } else {
-            slot
-        }
+        slot
     }
 
     private var slot: some View {
@@ -733,7 +855,6 @@ private struct EmptySlot: View {
             .fill(Color.primary.opacity(0.035))
             .frame(maxWidth: .infinity)
             .frame(height: 58)
-            .overlay(Image(systemName: "plus").font(.system(size: 11, weight: .medium)).foregroundColor(.secondary.opacity(0.5)))
     }
 }
 
@@ -1036,118 +1157,15 @@ private struct PillButton: View {
     }
 }
 
-private struct PointerTile: View {
-    let style: PointerStyle
-    let added: Bool
-    var onRemove: (() -> Void)?
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                if let icon = pointerIcon(style) {
-                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 52, height: 52)
-                }
-                Text(style.title)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.primary.opacity(hovering ? 0.07 : 0.03))
-            )
-            .overlay(alignment: .topTrailing) {
-                if added {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.accentColor)
-                        .padding(7)
-                } else if hovering {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .padding(7)
-                }
-            }
-            .overlay(alignment: .topLeading) {
-                if hovering, let onRemove = onRemove {
-                    Button(action: onRemove) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 22, height: 22)
-                            .background(Circle().fill(Color.primary.opacity(0.08)))
-                    }
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .help("Delete \(style.title)")
-                    .padding(4)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help(added ? "\(style.title): in the toolbar, click to remove" : "Add \(style.title) to the toolbar")
-        .onHover { hovering = $0 }
-    }
-}
-
-private struct NewHandTile: View {
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 52, height: 52)
-                Text("Make your own")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(hovering ? 0.25 : 0.14), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .onHover { hovering = $0 }
-    }
-}
-
 private struct MakeHandPage: View {
     @ObservedObject var model: SettingsModel
     @State private var dropping = false
-    private let ideas = ["Knitted wool", "Gold trophy", "Pixel art", "Neon sign", "Cat paw", "Marble statue"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
             Step(number: 1, title: "Describe it", detail: "What should your hand look like?") {
-                TextField("e.g. knitted wool in mustard yellow", text: $model.handIdea)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13))
+                PlainField(placeholder: "e.g. knitted wool in mustard yellow", text: $model.handIdea)
                     .frame(maxWidth: 420)
-                HStack(spacing: 6) {
-                    ForEach(ideas, id: \.self) { idea in
-                        Chip(title: idea, selected: model.handIdea == idea.lowercased()) {
-                            model.handIdea = idea.lowercased()
-                            model.promptCopied = false
-                        }
-                    }
-                }
             }
             Step(number: 2, title: "Make the image", detail: "Paste the prompt into ChatGPT or any image tool, then download it as a PNG with a transparent background.") {
                 HStack(spacing: 8) {
@@ -1230,9 +1248,7 @@ private struct MakeHandPage: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Name").font(.system(size: 11, weight: .medium)).foregroundColor(.secondary)
-                    TextField("My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 13))
+                    PlainField(placeholder: "My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
                         .frame(width: 220)
                 }
                 Text("It should show the back of the hand, like the ones in TinyHand. If you see the palm, try another image.")
@@ -1275,26 +1291,35 @@ private struct Step<Content: View>: View {
     }
 }
 
-private struct Chip: View {
-    let title: String
-    let selected: Bool
-    let action: () -> Void
-    @State private var hovering = false
+private struct PlainField: View {
+    let placeholder: String
+    @Binding var text: String
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .fixedSize()
-                .foregroundColor(selected ? .white : .primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(hovering ? 0.12 : 0.07)))
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+            )
+            .modifier(NoFocusEffect())
+    }
+}
+
+private struct NoFocusEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content.focusEffectDisabled()
+        } else {
+            content
         }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .onHover { hovering = $0 }
     }
 }
 
@@ -1351,7 +1376,7 @@ struct VisualEffect: NSViewRepresentable {
         let v = NSVisualEffectView()
         v.material = material
         v.blendingMode = .behindWindow
-        v.state = .followsWindowActiveState
+        v.state = .active
         return v
     }
 
