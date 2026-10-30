@@ -27,6 +27,14 @@ if let idx = CommandLine.arguments.firstIndex(of: "--toolbar-test") {
         try? data.write(to: URL(fileURLWithPath: out))
         print("rendered \(out)")
     }
+    if CommandLine.arguments.contains("--hint") {
+        bar.showHint([("Click", "to tap"), ("Drag", "to draw"), ("Hold ⌥", "to click for real"), ("Esc", "to exit")])
+        if let data = bar.snapshotHint()?.representation(using: .png, properties: [:]) {
+            let hintOut = out.replacingOccurrences(of: ".png", with: "-hint.png")
+            try? data.write(to: URL(fileURLWithPath: hintOut))
+            print("rendered \(hintOut)")
+        }
+    }
     if CommandLine.arguments.contains("--ink"), let data = bar.snapshotInkTray()?.representation(using: .png, properties: [:]) {
         let trayOut = out.replacingOccurrences(of: ".png", with: "-ink.png")
         try? data.write(to: URL(fileURLWithPath: trayOut))

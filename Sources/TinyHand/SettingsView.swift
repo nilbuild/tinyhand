@@ -280,6 +280,18 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    func swap(_ old: PointerStyle, for new: PointerStyle) {
+        var pinned = Preferences.pinnedStyles
+        guard let i = pinned.firstIndex(of: old), !pinned.contains(new) else {
+            return
+        }
+        pinned[i] = new
+        pinMessage = nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            Preferences.pinnedStyles = pinned
+        }
+    }
+
     func unpin(_ style: PointerStyle) {
         var pinned = Preferences.pinnedStyles
         guard let i = pinned.firstIndex(of: style) else {
@@ -746,13 +758,7 @@ private struct YourHands: View {
             } else {
                 HStack(spacing: 6) {
                     ForEach(PointerStyle.customHands, id: \.self) { style in
-                        CustomHandChip(style: style, pinned: Preferences.pinnedStyles.contains(style), add: {
-                            if !Preferences.pinnedStyles.contains(style) {
-                                model.pin(style)
-                            }
-                        }, remove: {
-                            model.removeHand(style)
-                        })
+                        CustomHandChip(style: style, model: model)
                     }
                 }
             }
@@ -765,18 +771,21 @@ private struct YourHands: View {
 
 private struct CustomHandChip: View {
     let style: PointerStyle
-    let pinned: Bool
-    let add: () -> Void
-    let remove: () -> Void
+    @ObservedObject var model: SettingsModel
     @State private var hovering = false
+    @State private var swapping = false
 
     var body: some View {
+        let pinned = Preferences.pinnedStyles.contains(style)
+        let full = Preferences.pinnedStyles.count >= Preferences.maxPinned
         HStack(spacing: 6) {
             if let icon = pointerIcon(style) {
                 Image(nsImage: icon).resizable().interpolation(.high).frame(width: 24, height: 24)
             }
             Text(style.title).font(.system(size: 12)).lineLimit(1)
-            Button(action: remove) {
+            Button {
+                model.removeHand(style)
+            } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundColor(.secondary)
@@ -788,17 +797,63 @@ private struct CustomHandChip: View {
             .opacity(hovering ? 1 : 0)
             .help("Delete \(style.title)")
         }
-        .padding(.leading, 6)
-        .padding(.trailing, 6)
+        .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .background(Capsule().fill(Color.primary.opacity(hovering && !pinned ? 0.09 : 0.05)))
         .contentShape(Capsule())
-        .onTapGesture(perform: add)
+        .onTapGesture {
+            guard !pinned else {
+                return
+            }
+            if full {
+                swapping = true
+            } else {
+                model.pin(style)
+            }
+        }
         .onHover { hovering = $0 }
         .help(pinned ? "\(style.title) is in your toolbar" : "Click to add \(style.title) to the toolbar")
+        .popover(isPresented: $swapping, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The toolbar is full. Swap \(style.title) in for:")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    ForEach(Preferences.pinnedStyles, id: \.self) { old in
+                        SwapCell(style: old) {
+                            model.swap(old, for: style)
+                            swapping = false
+                        }
+                    }
+                }
+            }
+            .padding(12)
+        }
     }
 }
 
+private struct SwapCell: View {
+    let style: PointerStyle
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let icon = pointerIcon(style) {
+                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 32, height: 32)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(hovering ? 0.1 : 0.04)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Replace \(style.title)")
+        .onHover { hovering = $0 }
+    }
+}
 private struct FloatingPointer: View {
     let style: PointerStyle
     let badge: String?

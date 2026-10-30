@@ -23,6 +23,15 @@ enum InteractKey: String, CaseIterable {
         }
     }
 
+    var symbol: String {
+        switch self {
+        case .option: return "⌥"
+        case .command: return "⌘"
+        case .control: return "⌃"
+        case .off: return ""
+        }
+    }
+
     var cgFlags: CGEventFlags {
         switch self {
         case .option: return .maskAlternate

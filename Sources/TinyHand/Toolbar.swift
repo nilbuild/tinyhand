@@ -29,6 +29,7 @@ final class Toolbar {
 
     private let tray: Panel
     private let trayStack = NSStackView()
+    private var hint: Panel?
 
     var frame: CGRect { inkOpen ? panel.frame.union(tray.frame) : panel.frame }
 
@@ -286,6 +287,84 @@ final class Toolbar {
         return rep
     }
 
+    func showHint(_ parts: [(key: String, text: String)]) {
+        hideHint()
+        let p = Panel(contentRect: CGRect(x: 0, y: 0, width: 300, height: 36),
+                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.ignoresMouseEvents = true
+        p.level = panel.level
+        p.collectionBehavior = panel.collectionBehavior
+        p.alphaValue = 0
+        let bg = NSVisualEffectView()
+        bg.material = .hudWindow
+        bg.blendingMode = .behindWindow
+        bg.state = .active
+        bg.appearance = NSAppearance(named: .vibrantDark)
+        bg.roundCorners(12)
+        p.contentView = bg
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = 14
+        row.edgeInsets = NSEdgeInsets(top: 9, left: 16, bottom: 9, right: 16)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        for part in parts {
+            let text = NSMutableAttributedString(string: part.key, attributes: [
+                .font: NSFont.systemFont(ofSize: 12.5, weight: .semibold),
+                .foregroundColor: NSColor.white,
+            ])
+            text.append(NSAttributedString(string: " " + part.text, attributes: [
+                .font: NSFont.systemFont(ofSize: 12.5),
+                .foregroundColor: NSColor(white: 1, alpha: 0.7),
+            ]))
+            row.addArrangedSubview(NSTextField(labelWithAttributedString: text))
+        }
+        bg.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: bg.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: bg.trailingAnchor),
+            row.topAnchor.constraint(equalTo: bg.topAnchor),
+            row.bottomAnchor.constraint(equalTo: bg.bottomAnchor),
+        ])
+        row.layoutSubtreeIfNeeded()
+        p.setContentSize(row.fittingSize)
+        p.setFrameOrigin(CGPoint(x: panel.frame.midX - p.frame.width / 2, y: panel.frame.maxY + 12))
+        p.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            p.animator().alphaValue = 1
+        }
+        hint = p
+    }
+
+    func snapshotHint() -> NSBitmapImageRep? {
+        guard let view = hint?.contentView else {
+            return nil
+        }
+        view.layer?.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+        view.layoutSubtreeIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return nil
+        }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep
+    }
+
+    func hideHint() {
+        guard let p = hint else {
+            return
+        }
+        hint = nil
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.3
+            p.animator().alphaValue = 0
+        }, completionHandler: {
+            p.orderOut(nil)
+        })
+    }
+
     func select(_ style: PointerStyle) {
         current = style
         rebuildStyles()
@@ -310,6 +389,7 @@ final class Toolbar {
     }
 
     func place(on screen: NSScreen) {
+        setInkOpen(false)
         let f = panel.frame
         panel.setFrameOrigin(CGPoint(x: screen.frame.midX - f.width / 2, y: screen.visibleFrame.minY + 14))
     }
@@ -321,6 +401,7 @@ final class Toolbar {
 
     func hide() {
         setInkOpen(false)
+        hideHint()
         revealed = false
         panel.alphaValue = 0
         panel.orderOut(nil)

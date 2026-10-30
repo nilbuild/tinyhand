@@ -137,8 +137,7 @@ final class ShortcutRecorder: NSButton {
             caps.append(String(c))
             rest = rest.dropFirst()
         }
-        let pending = rest.hasSuffix("…")
-        let tail = pending ? String(rest.dropLast()) : String(rest)
+        let tail = String(rest)
         if dim || (caps.isEmpty && tail.count > 4) {
             keys.addArrangedSubview(ShortcutRecorder.text(text))
             return
@@ -148,9 +147,6 @@ final class ShortcutRecorder: NSButton {
         }
         for cap in caps {
             keys.addArrangedSubview(ShortcutRecorder.keycap(cap))
-        }
-        if pending {
-            keys.addArrangedSubview(ShortcutRecorder.text("…"))
         }
     }
 
@@ -233,7 +229,7 @@ final class ShortcutRecorder: NSButton {
         guard monitor == nil else {
             return
         }
-        setLabel("Press keys…", dim: true)
+        setLabel("Press keys", dim: true)
         setRecordingLook(true)
         onRecording?(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
@@ -242,7 +238,11 @@ final class ShortcutRecorder: NSButton {
             }
             if event.type == .flagsChanged {
                 let flags = event.modifierFlags.intersection([.control, .option, .command, .shift])
-                self.setLabel(flags.isEmpty ? "Press keys…" : ShortcutRecorder.symbols(flags) + "…", dim: true)
+                if flags.isEmpty {
+                    self.setLabel("Press keys", dim: true)
+                } else {
+                    self.setLabel(ShortcutRecorder.symbols(flags))
+                }
                 return nil
             }
             self.handle(event)

@@ -55,6 +55,7 @@ final class OverlayController {
             self.armView.press()
             self.armView.held = true
             self.tapSound.play()
+            self.toolbar.hideHint()
             self.downPoint = self.localMouse()
             self.dragEvents = 0
             Log.write("press at \(self.downPoint.map { "\(Int($0.x)),\(Int($0.y))" } ?? "?")")
@@ -216,6 +217,8 @@ final class OverlayController {
         activate()
     }
 
+    static let hintShownKey = "firstRunHintShown"
+
     @discardableResult
     func activate() -> Bool {
         guard !isActive else {
@@ -248,6 +251,19 @@ final class OverlayController {
         toolbar.setNeedsPermission(!installed)
         toolbar.show()
         revealUntil = Date().addingTimeInterval(3)
+        if installed && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
+            UserDefaults.standard.set(true, forKey: OverlayController.hintShownKey)
+            var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw")]
+            if Preferences.interactKey != .off {
+                parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
+            }
+            parts.append(("Esc", "to exit"))
+            toolbar.showHint(parts)
+            revealUntil = Date().addingTimeInterval(10)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                self?.toolbar.hideHint()
+            }
+        }
         setEscEnabled(true)
         onActiveChanged?()
         return installed
@@ -425,7 +441,12 @@ final class OverlayController {
         }
 
         if currentFrame != screen.frame {
+            let moving = currentFrame != nil
             currentFrame = screen.frame
+            if moving {
+                release()
+                revealUntil = Date().addingTimeInterval(1.5)
+            }
             armView.ink.clear()
             window.setFrame(screen.frame, display: false)
             armView.frame = NSRect(origin: .zero, size: screen.frame.size)
