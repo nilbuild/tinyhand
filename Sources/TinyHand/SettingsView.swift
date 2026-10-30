@@ -53,14 +53,116 @@ final class SettingsModel: ObservableObject {
     @Published var shortcutError: String?
 
     private var observer: Any?
+    private var handsObserver: Any?
+    @Published var handMessage: String?
 
     init() {
         observer = NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.revision += 1
         }
+        handsObserver = NotificationCenter.default.addObserver(forName: CustomHands.changed, object: nil, queue: .main) { [weak self] _ in
+            self?.revision += 1
+        }
         HandAsset.preloadThumbnails(PointerStyle.allCases.compactMap(\.assetName)) { [weak self] in
             self?.revision += 1
         }
+    }
+
+    struct HandDraft {
+        let image: CGImage
+        let ink: UInt32
+    }
+
+    @Published var makingHand = false
+    @Published var handIdea = ""
+    @Published var handName = ""
+    @Published var draft: HandDraft?
+    @Published var draftError: String?
+    @Published var promptCopied = false
+
+    func startMakingHand() {
+        draft = nil
+        draftError = nil
+        promptCopied = false
+        handMessage = nil
+        makingHand = true
+    }
+
+    func copyPrompt() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(HandMaker.prompt(for: handIdea), forType: .string)
+        promptCopied = true
+    }
+
+    func openChatGPT() {
+        if let url = URL(string: "https://chatgpt.com/") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func chooseHandFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .webP, .image]
+        panel.allowsMultipleSelection = false
+        panel.message = "Pick the PNG of your hand"
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        loadDraft(url)
+    }
+
+    func loadDraft(_ url: URL) {
+        do {
+            let made = try HandMaker.make(from: url)
+            draft = HandDraft(image: made.image, ink: made.ink)
+            draftError = nil
+            handName = CustomHands.suggestedName(for: url)
+        } catch let problem as HandMaker.Problem {
+            draft = nil
+            draftError = problem.message
+        } catch {
+            draft = nil
+            draftError = "TinyHand couldn't read that file."
+        }
+    }
+
+    func saveDraft() {
+        guard let draft = draft else {
+            return
+        }
+        do {
+            let style = try CustomHands.add(draft.image, ink: draft.ink, name: handName)
+            if let name = style.assetName {
+                _ = HandAsset.thumbnail(name)
+            }
+            var pinned = Preferences.pinnedStyles
+            if pinned.count < Preferences.maxPinned {
+                pinned.insert(style, at: max(0, pinned.count - (pinned.last == .laser ? 1 : 0)))
+                Preferences.pinnedStyles = pinned
+                handMessage = "\(style.title) is in your toolbar."
+            } else {
+                handMessage = "\(style.title) is ready. Click it to add it to the toolbar."
+            }
+            PointerStyle.saved = style
+            NotificationCenter.default.post(name: Preferences.changed, object: nil)
+            self.draft = nil
+            handIdea = ""
+            makingHand = false
+        } catch {
+            draftError = "TinyHand couldn't save that hand."
+        }
+    }
+
+    func removeHand(_ style: PointerStyle) {
+        let pinned = Preferences.pinnedStyles.filter { $0 != style }
+        Preferences.pinnedStyles = pinned.isEmpty ? PointerStyle.defaultPinned : pinned
+        if PointerStyle.saved == style {
+            PointerStyle.saved = .lavender
+        }
+        CustomHands.remove(style)
+        handMessage = nil
+        NotificationCenter.default.post(name: Preferences.changed, object: nil)
+        revision += 1
     }
 
     func binding<T>(_ get: @escaping () -> T, _ set: @escaping (T) -> Void) -> Binding<T> {
@@ -219,7 +321,21 @@ struct SettingsView: View {
     private var page: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text(model.section.title)
+                if model.section == .pointers && model.makingHand {
+                    Button {
+                        model.makingHand = false
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left").font(.system(size: 11, weight: .semibold))
+                            Text("Pointers").font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .padding(.bottom, -14)
+                }
+                Text(model.section == .pointers && model.makingHand ? "Make your own hand" : model.section.title)
                     .font(.system(size: 22, weight: .bold))
                     .padding(.top, 6)
                 content
@@ -237,7 +353,12 @@ struct SettingsView: View {
     private var content: some View {
         switch model.section {
         case .general: GeneralPage(model: model)
-        case .pointers: PointersPage(model: model)
+        case .pointers:
+            if model.makingHand {
+                MakeHandPage(model: model)
+            } else {
+                PointersPage(model: model)
+            }
         case .appearance: AppearancePage(model: model)
         case .drawing: DrawingPage(model: model)
         case .sound: SoundPage(model: model)
@@ -416,6 +537,17 @@ private struct PointersPage: View {
         }
     }
 
+    private func tile(_ style: PointerStyle, pinned: Set<PointerStyle>) -> some View {
+        PointerTile(style: style, added: pinned.contains(style), onRemove: style.isCustom ? { model.removeHand(style) } : nil) {
+            model.pin(style)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .named("pointersPage"))
+                .onChanged { listDrag(style, $0) }
+                .onEnded { _ in dropDrag() }
+        )
+    }
+
     private func offset(_ style: PointerStyle) -> CGFloat {
         guard model.dragging == style, dragStart >= 0, floating == nil, let i = model.pinnedOrder.firstIndex(of: style) else {
             return 0
@@ -472,20 +604,31 @@ private struct PointersPage: View {
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
+                Text("Your hands")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(PointerStyle.customHands, id: \.self) { style in
+                        tile(style, pinned: pinnedSet)
+                    }
+                    NewHandTile { model.startMakingHand() }
+                }
+                if let message = model.handMessage {
+                    Text(message)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
                 Text("All pointers · click or drag to add")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(PointerStyle.allCases, id: \.self) { style in
-                        PointerTile(style: style, added: pinnedSet.contains(style)) {
-                            model.pin(style)
-                        }
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 4, coordinateSpace: .named("pointersPage"))
-                                .onChanged { listDrag(style, $0) }
-                                .onEnded { _ in dropDrag() }
-                        )
+                    ForEach(PointerStyle.builtInHands + [.laser], id: \.self) { style in
+                        tile(style, pinned: pinnedSet)
                     }
                 }
             }
@@ -896,6 +1039,7 @@ private struct PillButton: View {
 private struct PointerTile: View {
     let style: PointerStyle
     let added: Bool
+    var onRemove: (() -> Void)?
     let action: () -> Void
     @State private var hovering = false
 
@@ -909,6 +1053,8 @@ private struct PointerTile: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 8)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
@@ -929,11 +1075,250 @@ private struct PointerTile: View {
                         .padding(7)
                 }
             }
+            .overlay(alignment: .topLeading) {
+                if hovering, let onRemove = onRemove {
+                    Button(action: onRemove) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(Color.primary.opacity(0.08)))
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .help("Delete \(style.title)")
+                    .padding(4)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
         .help(added ? "\(style.title): in the toolbar, click to remove" : "Add \(style.title) to the toolbar")
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct NewHandTile: View {
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 52, height: 52)
+                Text("Make your own")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(hovering ? 0.25 : 0.14), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct MakeHandPage: View {
+    @ObservedObject var model: SettingsModel
+    @State private var dropping = false
+    private let ideas = ["Knitted wool", "Gold trophy", "Pixel art", "Neon sign", "Cat paw", "Marble statue"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            Step(number: 1, title: "Describe it", detail: "What should your hand look like?") {
+                TextField("e.g. knitted wool in mustard yellow", text: $model.handIdea)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13))
+                    .frame(maxWidth: 420)
+                HStack(spacing: 6) {
+                    ForEach(ideas, id: \.self) { idea in
+                        Chip(title: idea, selected: model.handIdea == idea.lowercased()) {
+                            model.handIdea = idea.lowercased()
+                            model.promptCopied = false
+                        }
+                    }
+                }
+            }
+            Step(number: 2, title: "Make the image", detail: "Paste the prompt into ChatGPT or any image tool, then download it as a PNG with a transparent background.") {
+                HStack(spacing: 8) {
+                    PrimaryButton(title: model.promptCopied ? "Copied" : "Copy prompt", symbol: model.promptCopied ? "checkmark" : "doc.on.doc") {
+                        model.copyPrompt()
+                    }
+                    PillButton(title: "Open ChatGPT ↗") { model.openChatGPT() }
+                }
+            }
+            Step(number: 3, title: "Add it", detail: nil) {
+                if let draft = model.draft {
+                    preview(draft)
+                } else {
+                    dropZone
+                }
+            }
+        }
+    }
+
+    private var dropZone: some View {
+        Button {
+            model.chooseHandFile()
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: model.draftError == nil ? "square.and.arrow.down" : "exclamationmark.triangle")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(model.draftError == nil ? .secondary : .orange)
+                Text(model.draftError ?? "Drop the PNG here, or click to choose it")
+                    .font(.system(size: 12))
+                    .foregroundColor(model.draftError == nil ? .secondary : .primary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.draftError != nil {
+                    Text("Try again with another image")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity)
+            .frame(height: 130)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(dropping ? 0.07 : 0.03))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(dropping ? Color.accentColor : Color.primary.opacity(0.14), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
+            guard let provider = providers.first else {
+                return false
+            }
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url = url else {
+                    return
+                }
+                DispatchQueue.main.async { model.loadDraft(url) }
+            }
+            return true
+        }
+    }
+
+    private func preview(_ draft: SettingsModel.HandDraft) -> some View {
+        HStack(alignment: .center, spacing: 22) {
+            Image(nsImage: NSImage(cgImage: draft.image.cropping(to: CGRect(x: 112, y: 90, width: 800, height: 1000)) ?? draft.image, size: NSSize(width: 144, height: 180)))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 144, height: 180)
+                .padding(.vertical, 10)
+                .frame(width: 170)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(red: 0.91, green: 0.81, blue: 0.71))
+                )
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Name").font(.system(size: 11, weight: .medium)).foregroundColor(.secondary)
+                    TextField("My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13))
+                        .frame(width: 220)
+                }
+                Text("It should show the back of the hand, like the ones in TinyHand. If you see the palm, try another image.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 300, alignment: .leading)
+                HStack(spacing: 10) {
+                    PrimaryButton(title: "Add hand", symbol: nil) { model.saveDraft() }
+                    TextButton(title: "Use another image") { model.chooseHandFile() }
+                }
+            }
+        }
+    }
+}
+
+private struct Step<Content: View>: View {
+    let number: Int
+    let title: String
+    let detail: String?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color.primary.opacity(0.75)))
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    if let detail = detail {
+                        Text(detail).font(.system(size: 12)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                content
+            }
+        }
+    }
+}
+
+private struct Chip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundColor(selected ? .white : .primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(hovering ? 0.12 : 0.07)))
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct PrimaryButton: View {
+    let title: String
+    let symbol: String?
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let symbol = symbol {
+                    Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                }
+                Text(title).font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(Color.accentColor.opacity(hovering ? 0.88 : 1)))
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering = $0 }
     }
 }

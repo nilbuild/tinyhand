@@ -44,10 +44,21 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             return nil
         }
         model.section = section
+        let env = ProcessInfo.processInfo.environment
+        if env["TH_MAKE_HAND"] != nil {
+            model.makingHand = true
+            model.handIdea = env["TH_MAKE_HAND"] ?? ""
+        }
+        if let draft = env["TH_DRAFT"] {
+            model.loadDraft(URL(fileURLWithPath: draft))
+        }
         w.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        if let tall = ProcessInfo.processInfo.environment["TH_SETTINGS_HEIGHT"].flatMap(Double.init) {
+            w.setContentSize(NSSize(width: 780, height: tall))
+        }
         w.center()
         w.orderFrontRegardless()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+        RunLoop.current.run(until: Date().addingTimeInterval(ProcessInfo.processInfo.environment["TH_SETTINGS_HEIGHT"] == nil ? 0.8 : 4))
         let image = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(w.windowNumber), [.boundsIgnoreFraming, .bestResolution])
         w.orderOut(nil)
         return image

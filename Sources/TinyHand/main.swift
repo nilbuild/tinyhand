@@ -55,6 +55,23 @@ if let idx = CommandLine.arguments.firstIndex(of: "--welcome-test") {
     exit(0)
 }
 
+if let idx = CommandLine.arguments.firstIndex(of: "--make-hand"), CommandLine.arguments.count > idx + 2 {
+    let input = URL(fileURLWithPath: CommandLine.arguments[idx + 1])
+    let output = URL(fileURLWithPath: CommandLine.arguments[idx + 2])
+    do {
+        let made = try HandMaker.make(from: input)
+        try HandMaker.write(made.image, to: output)
+        print(String(format: "ok %06X", made.ink))
+    } catch let problem as HandMaker.Problem {
+        print("rejected: \(problem.message)")
+        exit(1)
+    } catch {
+        print("failed: \(error)")
+        exit(1)
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--e2e-test") {
     E2ETest.run()
     exit(0)

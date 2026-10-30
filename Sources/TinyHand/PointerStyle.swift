@@ -1,103 +1,111 @@
 import AppKit
 
-enum PointerStyle: String, CaseIterable {
-    case lavender
-    case glove
-    case coral
-    case plush
-    case robot
-    case pink
-    case blue
-    case mint
-    case lemon
-    case black
-    case chrome
-    case holo
-    case fuzzy
-    case wood
-    case marble
-    case terrazzo
-    case glass
-    case jelly
-    case pastel
-    case pixel
-    case lowpoly
-    case knit
-    case skeleton
-    case astro
-    case space
-    case monster
-    case water
-    case lava
-    case grass
-    case cactus
-    case choco
-    case cloud
-    case laser
+struct PointerStyle: Hashable {
+    let rawValue: String
+
+    private init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init?(rawValue: String) {
+        guard PointerStyle.allCases.contains(where: { $0.rawValue == rawValue }) else {
+            return nil
+        }
+        self.rawValue = rawValue
+    }
+
+    static let lavender = PointerStyle("lavender")
+    static let glove = PointerStyle("glove")
+    static let coral = PointerStyle("coral")
+    static let plush = PointerStyle("plush")
+    static let robot = PointerStyle("robot")
+    static let laser = PointerStyle("laser")
+
+    private static let builtIn: [(id: String, title: String, ink: CGColor)] = [
+        ("lavender", "Lavender toy", Ink.purple),
+        ("glove", "Cursor glove", Ink.purple),
+        ("coral", "Coral vinyl", Ink.red),
+        ("plush", "Plush", Ink.hex(0x2F86F0)),
+        ("robot", "Robot", Ink.hex(0x16A87A)),
+        ("pink", "Bubblegum", Ink.hex(0xEE4F98)),
+        ("blue", "Sky", Ink.hex(0x2F86F0)),
+        ("mint", "Mint", Ink.hex(0x16A87A)),
+        ("lemon", "Lemon", Ink.hex(0xF2B705)),
+        ("black", "Midnight", Ink.hex(0x1D1D21)),
+        ("chrome", "Chrome", Ink.hex(0x6B7380)),
+        ("holo", "Holo", Ink.purple),
+        ("fuzzy", "Fuzzy", Ink.purple),
+        ("wood", "Wood", Ink.hex(0x9A5E2C)),
+        ("marble", "Marble", Ink.hex(0x6B7380)),
+        ("terrazzo", "Terrazzo", Ink.hex(0xF0561D)),
+        ("glass", "Glass", Ink.hex(0x1597E5)),
+        ("jelly", "Jelly", Ink.hex(0xA33FE6)),
+        ("pastel", "Pastel", Ink.hex(0xEE4F98)),
+        ("pixel", "Pixel", Ink.hex(0x1D1D21)),
+        ("lowpoly", "Low poly", Ink.purple),
+        ("knit", "Knit", Ink.purple),
+        ("skeleton", "Skeleton", Ink.hex(0x9A5E2C)),
+        ("astro", "Astronaut", Ink.hex(0x2F86F0)),
+        ("space", "Space", Ink.red),
+        ("monster", "Monster", Ink.hex(0x3E9E2E)),
+        ("water", "Water", Ink.hex(0x1597E5)),
+        ("lava", "Lava", Ink.hex(0xF0561D)),
+        ("grass", "Grass", Ink.hex(0x3E9E2E)),
+        ("cactus", "Cactus", Ink.hex(0x3E9E2E)),
+        ("choco", "Chocolate", Ink.hex(0x9A5E2C)),
+        ("cloud", "Cloud", Ink.hex(0x2F86F0)),
+        ("mech", "Mech", Ink.hex(0xF0561D)),
+        ("neon", "Neon", Ink.hex(0xE0309A)),
+        ("leaf", "Leaf", Ink.hex(0x3E9E2E)),
+        ("cookie", "Gingerbread", Ink.hex(0x9A5E2C)),
+    ]
+
+    static var builtInHands: [PointerStyle] {
+        builtIn.map { PointerStyle($0.id) }
+    }
+
+    static var customHands: [PointerStyle] {
+        CustomHands.all.map { PointerStyle($0.id) }
+    }
+
+    static var allCases: [PointerStyle] {
+        builtInHands + customHands + [.laser]
+    }
 
     static let defaultPinned: [PointerStyle] = [.lavender, .glove, .coral, .plush, .robot, .laser]
 
+    var isCustom: Bool {
+        CustomHands.hand(rawValue) != nil
+    }
+
     var title: String {
-        switch self {
-        case .lavender: return "Lavender toy"
-        case .glove: return "Cursor glove"
-        case .coral: return "Coral vinyl"
-        case .plush: return "Plush"
-        case .robot: return "Robot"
-        case .pink: return "Bubblegum"
-        case .blue: return "Sky"
-        case .mint: return "Mint"
-        case .lemon: return "Lemon"
-        case .black: return "Midnight"
-        case .chrome: return "Chrome"
-        case .holo: return "Holo"
-        case .fuzzy: return "Fuzzy"
-        case .wood: return "Wood"
-        case .marble: return "Marble"
-        case .terrazzo: return "Terrazzo"
-        case .glass: return "Glass"
-        case .jelly: return "Jelly"
-        case .pastel: return "Pastel"
-        case .pixel: return "Pixel"
-        case .lowpoly: return "Low poly"
-        case .knit: return "Knit"
-        case .skeleton: return "Skeleton"
-        case .astro: return "Astronaut"
-        case .space: return "Space"
-        case .monster: return "Monster"
-        case .water: return "Water"
-        case .lava: return "Lava"
-        case .grass: return "Grass"
-        case .cactus: return "Cactus"
-        case .choco: return "Chocolate"
-        case .cloud: return "Cloud"
-        case .laser: return "Laser dot"
+        if self == .laser {
+            return "Laser dot"
         }
+        if let custom = CustomHands.hand(rawValue) {
+            return custom.name
+        }
+        return PointerStyle.builtIn.first { $0.id == rawValue }?.title ?? rawValue
     }
 
     var assetName: String? {
-        switch self {
-        case .laser: return nil
-        default: return "hand_\(rawValue)"
+        if self == .laser {
+            return nil
         }
+        if isCustom {
+            return rawValue
+        }
+        return "hand_\(rawValue)"
     }
 
     var inkColor: CGColor {
-        switch self {
-        case .laser, .coral, .space: return Ink.red
-        case .lavender, .glove, .holo, .fuzzy, .lowpoly, .knit: return Ink.purple
-        case .plush, .blue, .astro, .cloud: return Ink.hex(0x2F86F0)
-        case .robot, .mint: return Ink.hex(0x16A87A)
-        case .pink, .pastel: return Ink.hex(0xEE4F98)
-        case .lemon: return Ink.hex(0xF2B705)
-        case .black, .pixel: return Ink.hex(0x1D1D21)
-        case .chrome, .marble: return Ink.hex(0x6B7380)
-        case .wood, .skeleton, .choco: return Ink.hex(0x9A5E2C)
-        case .terrazzo, .lava: return Ink.hex(0xF0561D)
-        case .glass, .water: return Ink.hex(0x1597E5)
-        case .jelly: return Ink.hex(0xA33FE6)
-        case .monster, .grass, .cactus: return Ink.hex(0x3E9E2E)
+        if self == .laser {
+            return Ink.red
         }
+        if let custom = CustomHands.hand(rawValue) {
+            return Ink.hex(custom.ink)
+        }
+        return PointerStyle.builtIn.first { $0.id == rawValue }?.ink ?? Ink.purple
     }
 
     private static let defaultsKey = "pointerStyle"
@@ -143,6 +151,11 @@ struct HandAsset {
     }
 
     private static var thumbnails: [String: NSImage] = [:]
+
+    static func forget(_ name: String) {
+        cache[name] = nil
+        thumbnails[name] = nil
+    }
 
     static func cachedThumbnail(_ name: String) -> NSImage? {
         thumbnails[name]
@@ -283,6 +296,7 @@ struct HandAsset {
     private static func loadImage(_ name: String) -> CGImage? {
         let exeDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
         var urls: [URL] = []
+        urls.append(CustomHands.directory.appendingPathComponent("\(name).png"))
         if let u = Bundle.main.url(forResource: name, withExtension: "png") {
             urls.append(u)
         }
