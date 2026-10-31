@@ -24,6 +24,7 @@ final class ArmView: NSView {
 
     private var pressAmount: CGFloat = 0
     private var gripX: CGFloat?
+    private var lastPose: [CGFloat] = []
 
     var pointerHidden = false {
         didSet {
@@ -147,6 +148,13 @@ final class ArmView: NSView {
             width: sx * cos(-rotation) - sy * sin(-rotation),
             height: sx * sin(-rotation) + sy * cos(-rotation)
         )
+
+        let pose = [rotation, rodLen, handPts, widthPts, grip.x, lift, pressAmount, showShadow ? 1 : 0, a.aspect]
+            .map { ($0 * 100).rounded() }
+        guard pose != lastPose else {
+            return
+        }
+        lastPose = pose
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
