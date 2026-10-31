@@ -12,6 +12,7 @@ final class OverlayController {
     private let inputTap = InputTap()
     private let tapSound = TapSound()
     private var interactHeld = false
+    private var guardCursorUntil = Date.distantPast
     private var timer: Timer?
     private var currentFrame: CGRect?
     private var downPoint: CGPoint?
@@ -74,6 +75,7 @@ final class OverlayController {
         }
         inputTap.onInteractUp = { [weak self] in
             self?.armView.held = false
+            self?.guardCursorUntil = Date().addingTimeInterval(2)
         }
         inputTap.onPassThroughPress = { [weak self] location in
             guard let screen = self?.currentScreen() else {
@@ -467,7 +469,7 @@ final class OverlayController {
             window.ignoresMouseEvents = !catchMouse
         }
         if !normalCursor {
-            CursorHider.reassert(fighting: overDock)
+            CursorHider.reassert(fighting: overDock || interactHeld || Date() < guardCursorUntil)
         }
         checkPermission()
 
