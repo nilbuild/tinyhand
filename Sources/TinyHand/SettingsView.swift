@@ -436,7 +436,7 @@ private struct GeneralPage: View {
                     .focusable(false)
                 }
                 if Preferences.interactKey != .off {
-                    Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays, so recordings don't flicker." : "The normal cursor comes back.") {
+                    Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays, in menus too." : "The normal cursor comes back, in menus too.") {
                         Picker("", selection: model.binding({ Preferences.interactKeepsHand }, { Preferences.interactKeepsHand = $0 })) {
                             Text("Show the cursor").tag(false)
                             Text("Keep the hand").tag(true)

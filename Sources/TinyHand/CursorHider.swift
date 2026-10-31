@@ -58,12 +58,12 @@ enum CursorHider {
         return unsafeBitCast(sym, to: Seed.self)
     }()
 
-    static func reassert(fighting: Bool = false) {
+    static func reassert(fighting: Bool = false, urgent: Bool = false) {
         guard hidden else {
             return
         }
         let seed = cursorSeed?() ?? 0
-        let interval = fighting ? 0.03 : Date().timeIntervalSince(hiddenAt) < 1 ? 0.05 : 1.0
+        let interval = urgent ? 0 : fighting ? 0.03 : Date().timeIntervalSince(hiddenAt) < 1 ? 0.05 : 1.0
         guard seed != lastSeed || Date().timeIntervalSince(lastReassert) > interval else {
             return
         }
