@@ -8,7 +8,7 @@
 
 A tiny hand on a stick that points at things on your Mac screen.
 
-<img src="./docs/assets/og.jpg" alt="TinyHand: a tiny hand for your Mac" />
+<img src="./.github/banner.jpg" alt="TinyHand: a tiny hand for your Mac" />
 
 [![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/nilbuild/tinyhand/releases/latest/download/TinyHand.dmg)
 [![Visit website](https://img.shields.io/badge/Visit_website-ffffff?style=for-the-badge&logo=safari&logoColor=black)](https://tinyhand.app)
