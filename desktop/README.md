@@ -1,0 +1,96 @@
+# TinyHand for Windows (Rust + Tauri)
+
+Cross-platform TinyHand, starting with Windows. The macOS app in `../Sources`
+stays the shipping Mac build for now. This workspace is meant to take it over
+once its overlay is ported (see "Porting to macOS" below).
+
+```
+desktop/
+  core/   tinyhand-core: pure Rust, no OS calls. Hand image measuring, arm
+          physics, ink, prefs, catalog, and the renderer. Unit-tested.
+  app/    tinyhand: the Tauri app. Tray, global shortcuts, settings/toolbar
+          windows, and platform/ (the OS-specific overlay).
+  ui/     toolbar.html and settings.html (plain HTML/JS, no bundler).
+```
+
+## How it works on Windows
+
+| macOS (Swift) | Windows (`app/src/platform/windows`) |
+|---|---|
+| `CGEventTap` + Accessibility permission | `WH_MOUSE_LL` low-level hook (`hook.rs`). No permission needed |
+| `NSWindow` at screenSaver level + Core Animation | Layered `WS_EX_TRANSPARENT \| TOPMOST` window, painted by `tinyhand_core::Engine` via `UpdateLayeredWindowIndirect` with a dirty rect (`overlay.rs`) |
+| `CGDisplayHideCursor` + private CGS calls | Every system cursor swapped for a blank one, restored with `SPI_SETCURSORS` on exit, on panic and on next launch (`cursor.rs`) |
+| Carbon hotkeys | `tauri-plugin-global-shortcut` (Ctrl+Alt+H, Ctrl+Alt+X, Esc while on) |
+| Menu bar item | Tray icon (left click toggles, right click menu) |
+| Dock / menu bar pass-through | Taskbar strips, the toolbar and the Settings window pass clicks through |
+| Hold ⌥ to click for real | Hold Alt (or Ctrl/Shift). Alt-clicks are followed by a dummy key so Alt doesn't open app menus |
+| AVAudioEngine | `PlaySound` from memory (`sound.rs`) |
+| `SMAppService` | `tauri-plugin-autostart` (HKCU Run key) |
+
+The overlay thread sleeps on a channel: a click wakes it at once. While the
+mouse moves or something animates, it ticks at the monitor's refresh rate,
+and at 20 Hz when idle. Only the changed rectangle is re-rendered. The hand
+and rod use a small span rasteriser (`core/src/raster.rs`) that only visits
+covered pixels. Ink and the laser dot use tiny-skia.
+
+Rendering cost per moving frame (Apple M-series, `cargo run -p tinyhand-core --release --example bench`):
+about 1.6 ms at 1920×1080 and 6.4 ms at 3840×2160, with shadow.
+
+## Build
+
+Windows (native):
+
+```powershell
+cd desktop\app
+npx @tauri-apps/cli@2 dev      # run
+npx @tauri-apps/cli@2 build    # NSIS installer in desktop\target\release\bundle\nsis
+```
+
+From macOS (cross-compile; links a real `.exe`, can't run it):
+
+```sh
+rustup target add x86_64-pc-windows-msvc
+cargo install cargo-xwin
+cd desktop && cargo xwin build -p tinyhand --release --target x86_64-pc-windows-msvc
+```
+
+CI (`.github/workflows/windows.yml`) tests the core and uploads the installer as an artifact.
+
+Core only, any OS:
+
+```sh
+cd desktop
+cargo test -p tinyhand-core
+cargo run -p tinyhand-core --release --example render -- robot frame.png   # render a frame to PNG
+cargo run -p tinyhand-core --release --example bench
+```
+
+`cargo run -p tinyhand` on macOS starts the tray, Settings and toolbar with a
+stub overlay, which is handy for UI work.
+
+## Known gaps / next steps
+
+- **Not yet run on real Windows hardware.** It compiles and links for
+  x86_64-pc-windows-msvc, and the core is tested. First thing to check on a
+  Windows machine: cursor hiding, hook behaviour, toolbar clicks not stealing
+  focus.
+- Over windows running as admin (Task Manager, elevated terminals), Windows
+  doesn't let a normal app's hook see the clicks, so they go through. Staying
+  above the Start menu also needs `uiAccess="true"`, which needs a signed
+  build installed under Program Files.
+- Apps that draw their own custom cursor (some games, design tools) still
+  show it. A fallback is the Magnification API's `MagShowSystemCursor`.
+- Sign the installer (e.g. Azure Trusted Signing). An unsigned app that hooks
+  the mouse and hides the cursor will get SmartScreen and antivirus warnings.
+- Still missing compared to the Mac app: custom hands (HandMaker), the
+  first-run hint bubble, an ink colour button in the toolbar, editable
+  shortcuts, and auto-update (`tauri-plugin-updater`).
+- Performance headroom: on 4K screens a DirectComposition backend (GPU
+  transforms, like Core Animation on the Mac) would make frames nearly free.
+
+## Porting to macOS
+
+`tinyhand-core` already has everything except the OS layer. A
+`platform/macos.rs` would provide the same `Overlay` API using a CGEventTap,
+an `NSWindow` (via `objc2`) fed by `Engine::render`, and the existing
+cursor-hiding approach from `CursorHider.swift`.

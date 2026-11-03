@@ -5,3 +5,7 @@ dist/
 *.dmg
 *.zip
 assets/unused/
+
+# Rust / Tauri (desktop/)
+desktop/target/
+desktop/app/gen/

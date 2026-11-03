@@ -1,0 +1,15 @@
+[workspace]
+members = ["core", "app"]
+resolver = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+# Image decoding and rasterising are far too slow unoptimised; keep dev builds usable.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.tinyhand-core]
+opt-level = 2
