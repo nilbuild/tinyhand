@@ -13,8 +13,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var toggleItem: NSMenuItem?
     private var clearItem: NSMenuItem?
     private var soundItem: NSMenuItem?
+    private var snapItem: NSMenuItem?
+    private var recordItem: NSMenuItem?
     private var toggleHotKey: UInt32?
     private var clearHotKey: UInt32?
+    private var captureHotKey: UInt32?
+
+    private enum ShortcutKind {
+        case toggle, clear, capture
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = editingMenu()
@@ -26,6 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         overlay.onSoundChanged = { [weak self] in
             self?.refreshMenu()
+        }
+        overlay.onRecordingChanged = { [weak self] in
+            self?.refreshMenu()
+        }
+        overlay.onOpenSettings = { [weak self] in
+            self?.openSettings()
         }
         overlay.extraPassThrough = { [weak self] in
             guard let frame = self?.statusItem.button?.window?.frame else {
@@ -48,6 +61,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
             welcome.show()
         }
+    }
+
+    /// Opening TinyHand again (Finder, Spotlight, Launchpad) shows Settings, so it can be
+    /// reached even when the menu bar icon is hidden behind the notch or a crowded menu bar.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -74,6 +94,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(clear)
         menu.addItem(sound)
         menu.addItem(.separator())
+        let snap = NSMenuItem(title: "", action: #selector(takeSnapshot), keyEquivalent: "")
+        let record = NSMenuItem(title: "", action: #selector(toggleRecording), keyEquivalent: "")
+        snapItem = snap
+        recordItem = record
+        menu.addItem(snap)
+        menu.addItem(record)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         if Updater.isAvailable {
             menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""))
@@ -86,10 +113,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupSettings() {
         settings.applyToggleShortcut = { [weak self] s in
-            self?.apply(s, isToggle: true) ?? false
+            self?.apply(s, kind: .toggle) ?? false
         }
         settings.applyClearShortcut = { [weak self] s in
-            self?.apply(s, isToggle: false) ?? false
+            self?.apply(s, kind: .clear) ?? false
+        }
+        settings.applyCaptureShortcut = { [weak self] s in
+            self?.apply(s, kind: .capture) ?? false
         }
         settings.updater = Updater.isAvailable ? updater : nil
         settings.onRecording = { [weak self] recording in
@@ -127,56 +157,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleItem?.title = "\(on ? "Turn Pointer Off" : "Turn Pointer On")    \(Preferences.toggleShortcut.display)"
         clearItem?.title = "Clear Drawing    \(Preferences.clearShortcut.display)"
         soundItem?.state = overlay.soundOn ? .on : .off
+        snapItem?.title = "Take Snapshot    \(Preferences.captureShortcut.display)"
+        recordItem?.title = overlay.isRecording ? "Stop Recording" : "Record Video    \(Preferences.captureShortcut.display) twice"
         permissionItem?.isHidden = AXIsProcessTrusted()
     }
 
-    private func apply(_ s: Shortcut, isToggle: Bool) -> Bool {
-        unregisterHotKeys()
-        let old = isToggle ? Preferences.toggleShortcut : Preferences.clearShortcut
-        if isToggle {
-            Preferences.toggleShortcut = s
-        } else {
-            Preferences.clearShortcut = s
+    private func shortcut(_ kind: ShortcutKind) -> Shortcut {
+        switch kind {
+        case .toggle: return Preferences.toggleShortcut
+        case .clear: return Preferences.clearShortcut
+        case .capture: return Preferences.captureShortcut
         }
-        let ok = registerHotKeys()
-        if ok {
+    }
+
+    private func setShortcut(_ s: Shortcut, _ kind: ShortcutKind) {
+        switch kind {
+        case .toggle: Preferences.toggleShortcut = s
+        case .clear: Preferences.clearShortcut = s
+        case .capture: Preferences.captureShortcut = s
+        }
+    }
+
+    private func hotKey(_ kind: ShortcutKind) -> UInt32? {
+        switch kind {
+        case .toggle: return toggleHotKey
+        case .clear: return clearHotKey
+        case .capture: return captureHotKey
+        }
+    }
+
+    private func apply(_ s: Shortcut, kind: ShortcutKind) -> Bool {
+        unregisterHotKeys()
+        let old = shortcut(kind)
+        setShortcut(s, kind)
+        registerHotKeys()
+        if hotKey(kind) != nil {
             return true
         }
         unregisterHotKeys()
-        if isToggle {
-            Preferences.toggleShortcut = old
-        } else {
-            Preferences.clearShortcut = old
-        }
+        setShortcut(old, kind)
         registerHotKeys()
         return false
     }
 
     @discardableResult
     private func registerHotKeys() -> Bool {
-        guard toggleHotKey == nil, clearHotKey == nil else {
+        guard toggleHotKey == nil, clearHotKey == nil, captureHotKey == nil else {
             return true
         }
         let t = Preferences.toggleShortcut
         let c = Preferences.clearShortcut
+        let k = Preferences.captureShortcut
         toggleHotKey = HotKeyCenter.shared.register(keyCode: t.keyCode, modifiers: t.modifiers) { [weak self] in
             self?.overlay.toggle()
         }
         clearHotKey = HotKeyCenter.shared.register(keyCode: c.keyCode, modifiers: c.modifiers) { [weak self] in
             self?.overlay.clearInk()
         }
-        return toggleHotKey != nil && clearHotKey != nil
+        captureHotKey = HotKeyCenter.shared.register(keyCode: k.keyCode, modifiers: k.modifiers) { [weak self] in
+            self?.overlay.captureGesture(hidePointer: false)
+        }
+        return toggleHotKey != nil && clearHotKey != nil && captureHotKey != nil
     }
 
     private func unregisterHotKeys() {
-        if let id = toggleHotKey {
-            HotKeyCenter.shared.unregister(id)
-        }
-        if let id = clearHotKey {
+        for id in [toggleHotKey, clearHotKey, captureHotKey].compactMap({ $0 }) {
             HotKeyCenter.shared.unregister(id)
         }
         toggleHotKey = nil
         clearHotKey = nil
+        captureHotKey = nil
+    }
+
+    @objc private func takeSnapshot() {
+        // Give the menu a moment to close so it isn't in the picture.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.overlay.takeSnapshot(hidePointer: false)
+        }
+    }
+
+    @objc private func toggleRecording() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.overlay.toggleRecording()
+        }
     }
 
     @objc private func toggle() {
@@ -207,8 +270,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func quit() {
-        overlay.deactivate()
-        NSApp.terminate(nil)
+        // Let a recording finish writing its file before quitting.
+        overlay.stopRecording {
+            self.overlay.deactivate()
+            NSApp.terminate(nil)
+        }
     }
 
     private func enableLaunchAtLoginOnFirstRun() {

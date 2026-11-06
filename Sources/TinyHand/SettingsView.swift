@@ -48,6 +48,7 @@ final class SettingsModel: ObservableObject {
 
     var applyToggleShortcut: ((Shortcut) -> Bool)?
     var applyClearShortcut: ((Shortcut) -> Bool)?
+    var applyCaptureShortcut: ((Shortcut) -> Bool)?
     var onRecording: ((Bool) -> Void)?
     var updater: Updater?
     @Published var shortcutError: String?
@@ -250,6 +251,7 @@ final class SettingsModel: ObservableObject {
         Preferences.resetAll()
         _ = applyToggleShortcut?(.toggleDefault)
         _ = applyClearShortcut?(.clearDefault)
+        _ = applyCaptureShortcut?(.captureDefault)
         shortcutError = nil
         pinMessage = nil
         revision += 1
@@ -419,9 +421,50 @@ private struct GeneralPage: View {
                 Row("Clear the drawing") {
                     ShortcutField(shortcut: Preferences.clearShortcut, model: model) { model.applyClearShortcut?($0) ?? false }
                 }
+                Row("Snapshot", detail: "Press twice quickly to record a video.") {
+                    ShortcutField(shortcut: Preferences.captureShortcut, model: model) { model.applyCaptureShortcut?($0) ?? false }
+                }
             }
             if let error = model.shortcutError {
                 Text(error).font(.system(size: 12)).foregroundColor(.red)
+            }
+            Card(title: "Snapshots and videos") {
+                if !CGPreflightScreenCaptureAccess() {
+                    Row("Screen Recording", detail: "Needed for snapshots and videos. Reopen TinyHand after allowing it.") {
+                        PillButton(title: "Open Settings") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+                Row("Two-finger tap takes a snapshot",
+                    detail: "Or right-click. Tap twice quickly to record a video, once more to stop.") {
+                    Toggle("", isOn: model.binding({ Preferences.secondaryClickCaptures }, { Preferences.secondaryClickCaptures = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Copy to the clipboard", detail: "Ready to paste into a chat or email.") {
+                    Toggle("", isOn: model.binding({ Preferences.captureCopies }, { Preferences.captureCopies = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Save to a folder", detail: "Videos are always saved.") {
+                    Toggle("", isOn: model.binding({ Preferences.captureSaves }, { Preferences.captureSaves = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Folder", detail: Preferences.captureFolder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) {
+                    PillButton(title: "Choose…") {
+                        let panel = NSOpenPanel()
+                        panel.canChooseFiles = false
+                        panel.canChooseDirectories = true
+                        panel.canCreateDirectories = true
+                        panel.allowsMultipleSelection = false
+                        panel.directoryURL = Preferences.captureFolder
+                        panel.prompt = "Choose"
+                        if panel.runModal() == .OK, let url = panel.url {
+                            Preferences.captureFolder = url
+                        }
+                    }
+                }
             }
             Card(title: "Clicking for real") {
                 Row("Hold to use the app", detail: "Clicks, drags and scrolls reach the app.") {

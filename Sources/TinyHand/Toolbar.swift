@@ -4,6 +4,9 @@ final class Toolbar {
     var onPick: ((PointerStyle) -> Void)?
     var onToggleSound: (() -> Void)?
     var onExit: (() -> Void)?
+    var onSnap: (() -> Void)?
+    var onRecord: (() -> Void)?
+    var onSettings: (() -> Void)?
     var onFixPermission: (() -> Void)?
 
     private final class Panel: NSPanel {
@@ -25,6 +28,9 @@ final class Toolbar {
     private var inkOpen = false
     private let permissionButton = Button()
     private var soundButton: Button?
+    private var snapButton: Button?
+    private var recordButton: Button?
+    private var recording = false
     private(set) var revealed = false
 
     private let tray: Panel
@@ -92,11 +98,25 @@ final class Toolbar {
         }
         inkButton = ink
         stack.addArrangedSubview(ink)
+        let snap = makeButton(symbol: "camera.fill", tip: "Snapshot") { [weak self] in
+            self?.onSnap?()
+        }
+        snapButton = snap
+        stack.addArrangedSubview(snap)
+        let record = makeButton(symbol: "record.circle", tip: "Record video") { [weak self] in
+            self?.onRecord?()
+        }
+        recordButton = record
+        stack.addArrangedSubview(record)
+        refreshCaptureTips()
         let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Tap sound") { [weak self] in
             self?.onToggleSound?()
         }
         soundButton = sound
         stack.addArrangedSubview(sound)
+        stack.addArrangedSubview(makeButton(symbol: "gearshape.fill", tip: "Settings") { [weak self] in
+            self?.onSettings?()
+        })
         stack.addArrangedSubview(makeButton(symbol: "xmark", tip: "Exit  (Esc)") { [weak self] in
             self?.onExit?()
         })
@@ -127,7 +147,27 @@ final class Toolbar {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildStyles()
             self?.refreshInk()
+            self?.refreshCaptureTips()
         }
+    }
+
+    func setRecording(_ on: Bool) {
+        recording = on
+        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        let tip = on ? "Stop recording" : "Record video"
+        recordButton?.image = NSImage(systemSymbolName: on ? "stop.circle.fill" : "record.circle",
+                                      accessibilityDescription: tip)?.withSymbolConfiguration(config)
+        recordButton?.contentTintColor = on ? .systemRed : NSColor(white: 1, alpha: 0.85)
+        refreshCaptureTips()
+    }
+
+    private func refreshCaptureTips() {
+        let gesture = Preferences.secondaryClickCaptures ? "two-finger tap" : Preferences.captureShortcut.display
+        let copy = Preferences.captureCopies ? "copy" : ""
+        let save = Preferences.captureSaves || !Preferences.captureCopies ? "save" : ""
+        let what = [copy, save].filter { !$0.isEmpty }.joined(separator: " & ")
+        snapButton?.toolTip = "Snapshot — \(what)  (\(gesture))"
+        recordButton?.toolTip = recording ? "Stop recording  (\(gesture) or Esc)" : "Record video  (\(gesture) twice)"
     }
 
     private func toggleInk() {

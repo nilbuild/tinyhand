@@ -9,6 +9,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applyClearShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyClearShortcut = applyClearShortcut }
     }
+    var applyCaptureShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyCaptureShortcut = applyCaptureShortcut }
+    }
     var onRecording: ((Bool) -> Void)? {
         didSet { model.onRecording = onRecording }
     }

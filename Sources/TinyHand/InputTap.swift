@@ -7,12 +7,20 @@ final class InputTap {
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
+    /// Right-click (a two-finger tap on a trackpad) while the pointer is on. Takes a snapshot.
+    var onSecondaryClick: (() -> Void)?
 
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
     private var _interactPress = false
+    private var _secondaryCaptures = true
+
+    var secondaryCaptures: Bool {
+        get { lock.withLock { _secondaryCaptures } }
+        set { lock.withLock { _secondaryCaptures = newValue } }
+    }
 
     var passThroughRects: [CGRect] {
         get { lock.withLock { _passThroughRects } }
@@ -173,6 +181,18 @@ final class InputTap {
                 passingThrough = false
             }
             return Unmanaged.passUnretained(event)
+        }
+
+        if secondaryCaptures {
+            switch type {
+            case .rightMouseDown:
+                DispatchQueue.main.async { [weak self] in self?.onSecondaryClick?() }
+                return nil
+            case .rightMouseUp, .rightMouseDragged:
+                return nil
+            default:
+                break
+            }
         }
 
         switch type {

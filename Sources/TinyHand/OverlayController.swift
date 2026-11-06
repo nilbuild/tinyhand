@@ -21,6 +21,10 @@ final class OverlayController {
     private var dragEvents = 0
 
     private let toolbar = Toolbar()
+    private let capture = Capture()
+    private var pendingSnap: DispatchWorkItem?
+    private var captureBusy = false
+    private static let doubleTapWindow: TimeInterval = 0.35
     private var revealUntil = Date.distantPast
     private var normalCursor = false
     private var ownMenuOpen = false
@@ -44,6 +48,9 @@ final class OverlayController {
     private(set) var isActive = false
     private var activity: NSObjectProtocol?
     var onActiveChanged: (() -> Void)?
+    var onRecordingChanged: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
+    var isRecording: Bool { capture.isRecording }
     var onNeedsPermission: (() -> Void)?
 
     init() {
@@ -95,6 +102,13 @@ final class OverlayController {
             CursorHider.reassert(urgent: true)
             self?.noteButtonEvent()
         }
+        inputTap.onSecondaryClick = { [weak self] in
+            self?.captureGesture(hidePointer: false)
+        }
+        inputTap.secondaryCaptures = Preferences.secondaryClickCaptures
+        capture.onStoppedBySystem = { [weak self] in
+            self?.stopRecording()
+        }
         inputTap.onPassThroughPress = { [weak self] location in
             guard let screen = self?.currentScreen() else {
                 return
@@ -112,6 +126,15 @@ final class OverlayController {
         toolbar.onToggleSound = { [weak self] in
             self?.soundOn.toggle()
         }
+        toolbar.onSnap = { [weak self] in
+            self?.takeSnapshot(hidePointer: true)
+        }
+        toolbar.onRecord = { [weak self] in
+            self?.toggleRecording()
+        }
+        toolbar.onSettings = { [weak self] in
+            self?.onOpenSettings?()
+        }
         toolbar.onExit = { [weak self] in
             self?.exit()
         }
@@ -125,6 +148,7 @@ final class OverlayController {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
+            self?.inputTap.secondaryCaptures = Preferences.secondaryClickCaptures
             self?.armView.updateInkColor()
             self?.tapSound.load(Preferences.tapSound)
             if let self = self, self.armView.style != PointerStyle.saved {
@@ -298,6 +322,7 @@ final class OverlayController {
             return
         }
         isActive = false
+        stopRecording()
 
         timer?.invalidate()
         timer = nil
@@ -425,6 +450,204 @@ final class OverlayController {
     private static func cgRect(_ r: CGRect) -> CGRect {
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
         return CGRect(x: r.minX, y: primaryH - r.maxY, width: r.width, height: r.height)
+    }
+
+    // MARK: Snapshots and videos
+
+    /// One press takes a snapshot; two quick presses start a video; any press while recording stops it.
+    func captureGesture(hidePointer: Bool) {
+        if capture.isRecording {
+            stopRecording()
+            return
+        }
+        if let pending = pendingSnap {
+            pending.cancel()
+            pendingSnap = nil
+            toggleRecording()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSnap = nil
+            self?.takeSnapshot(hidePointer: hidePointer)
+        }
+        pendingSnap = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + OverlayController.doubleTapWindow, execute: work)
+    }
+
+    func takeSnapshot(hidePointer: Bool) {
+        guard !captureBusy, let screen = currentScreen() else {
+            return
+        }
+        guard screenPermissionOK() else {
+            return
+        }
+        captureBusy = true
+        // From the toolbar the hand would just be pointing at the (hidden) toolbar, so leave it out.
+        let hide = hidePointer && isActive && !armView.pointerHidden
+        if hide {
+            armView.pointerHidden = true
+        }
+        let keep = [window.windowNumber]
+        DispatchQueue.main.asyncAfter(deadline: .now() + (hide ? 0.12 : 0)) { [weak self] in
+            Task { @MainActor in
+                guard let self = self else {
+                    return
+                }
+                defer {
+                    if hide && !self.normalCursor {
+                        self.armView.pointerHidden = false
+                    }
+                    self.captureBusy = false
+                }
+                do {
+                    let image = try await self.capture.snapshot(screen: screen, keep: keep)
+                    Capture.shutter?.stop()
+                    Capture.shutter?.play()
+                    self.flash(self.deliver(image), key: "Snapshot")
+                } catch {
+                    self.captureFailed(error)
+                }
+            }
+        }
+    }
+
+    func toggleRecording() {
+        if capture.isRecording {
+            stopRecording()
+            return
+        }
+        guard !captureBusy, let screen = currentScreen() else {
+            return
+        }
+        guard screenPermissionOK() else {
+            return
+        }
+        captureBusy = true
+        // Shown before recording starts, so it is left out of the video like the toolbar.
+        flash(Preferences.secondaryClickCaptures ? "two-finger tap or Esc to stop" : "press \(Preferences.captureShortcut.display) or Esc to stop",
+              key: "● Recording")
+        let url = Capture.newFileURL(ext: "mov")
+        let keep = [window.windowNumber]
+        Task { @MainActor [weak self] in
+            guard let self = self else {
+                return
+            }
+            do {
+                try await self.capture.startRecording(screen: screen, keep: keep, to: url)
+                self.toolbar.setRecording(true)
+                self.onRecordingChanged?()
+            } catch {
+                self.toolbar.hideHint()
+                self.captureFailed(error)
+            }
+            self.captureBusy = false
+        }
+    }
+
+    func stopRecording(then done: (() -> Void)? = nil) {
+        guard capture.isRecording else {
+            done?()
+            return
+        }
+        toolbar.setRecording(false)
+        Task { @MainActor [weak self] in
+            guard let self = self else {
+                return
+            }
+            let url = await self.capture.stopRecording()
+            self.onRecordingChanged?()
+            defer {
+                done?()
+            }
+            guard let url = url else {
+                self.flash("couldn't save the video", key: "Recording")
+                return
+            }
+            if Preferences.captureCopies {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([url as NSURL])
+            }
+            Capture.shutter?.play()
+            if self.isActive {
+                let copied = Preferences.captureCopies ? "copied · " : ""
+                self.flash("\(copied)saved to \(Capture.folderName)", key: "Video")
+            } else {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        }
+    }
+
+    /// Copies and/or saves the picture and returns a short message about what happened.
+    private func deliver(_ image: CGImage) -> String {
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return "couldn't make the picture"
+        }
+        var done: [String] = []
+        if Preferences.captureCopies {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setData(png, forType: .png)
+            done.append("copied")
+        }
+        if Preferences.captureSaves || !Preferences.captureCopies {
+            let url = Capture.newFileURL(ext: "png")
+            do {
+                try png.write(to: url)
+                done.append("saved to \(Capture.folderName)")
+                Log.write("snapshot saved \(url.path)")
+            } catch {
+                done.append("couldn't save to \(Capture.folderName)")
+                Log.write("snapshot save failed: \(error.localizedDescription)")
+            }
+        }
+        return done.joined(separator: " · ")
+    }
+
+    private func flash(_ text: String, key: String) {
+        // A new hint window during a recording would show up in the video.
+        guard isActive, !capture.isRecording else {
+            return
+        }
+        toolbar.showHint([(key: key, text: text)])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.toolbar.hideHint()
+        }
+    }
+
+    private func screenPermissionOK() -> Bool {
+        let check = Capture.checkPermission()
+        if check.granted {
+            return true
+        }
+        exit()
+        if check.shouldExplain {
+            explainScreenPermission()
+        }
+        return false
+    }
+
+    private func captureFailed(_ error: Error) {
+        Log.write("capture failed: \(error)")
+        if let e = error as? CaptureError, case .permission = e {
+            exit()
+            explainScreenPermission()
+            return
+        }
+        flash("something went wrong", key: "Capture")
+    }
+
+    private func explainScreenPermission() {
+        let alert = NSAlert()
+        alert.messageText = "Let TinyHand take snapshots and videos"
+        alert.informativeText = "Turn on TinyHand in System Settings → Privacy & Security → Screen & System Audio Recording. Then quit TinyHand and open it again."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func runClickTest() {

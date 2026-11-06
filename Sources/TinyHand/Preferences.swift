@@ -9,6 +9,7 @@ struct Shortcut: Equatable {
 
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥H")
     static let clearDefault = Shortcut(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥X")
+    static let captureDefault = Shortcut(keyCode: UInt32(kVK_ANSI_S), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥S")
 }
 
 enum InteractKey: String, CaseIterable {
@@ -90,6 +91,40 @@ enum Preferences {
     static var clearShortcut: Shortcut {
         get { loadShortcut("shortcut.clear") ?? .clearDefault }
         set { saveShortcut(newValue, "shortcut.clear") }
+    }
+
+    static var captureShortcut: Shortcut {
+        get { loadShortcut("shortcut.capture") ?? .captureDefault }
+        set { saveShortcut(newValue, "shortcut.capture") }
+    }
+
+    /// Right-click / two-finger tap takes a snapshot (twice quickly records a video).
+    static var secondaryClickCaptures: Bool {
+        get { defaults.object(forKey: "capture.secondaryClick") as? Bool ?? true }
+        set { set(newValue, "capture.secondaryClick") }
+    }
+
+    static var captureCopies: Bool {
+        get { defaults.object(forKey: "capture.copy") as? Bool ?? true }
+        set { set(newValue, "capture.copy") }
+    }
+
+    static var captureSaves: Bool {
+        get { defaults.object(forKey: "capture.save") as? Bool ?? true }
+        set { set(newValue, "capture.save") }
+    }
+
+    static var defaultCaptureFolder: URL {
+        FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Desktop")
+    }
+
+    static var captureFolder: URL {
+        get {
+            defaults.string(forKey: "capture.folder").map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? defaultCaptureFolder
+        }
+        set { set(newValue.path, "capture.folder") }
     }
 
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
@@ -177,7 +212,8 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "tapSound"] {
+                    "inkChoice", "showInkButton", "tapSound", "shortcut.capture",
+                    "capture.secondaryClick", "capture.copy", "capture.save", "capture.folder"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)
