@@ -54,7 +54,7 @@ cargo install cargo-xwin
 cd desktop && cargo xwin build -p tinyhand --release --target x86_64-pc-windows-msvc
 ```
 
-CI (`.github/workflows/windows.yml`) tests the core and uploads the installer as an artifact.
+CI (`.github/workflows/windows.yml`) tests the core and uploads the installer as an artifact. Pushing a `windows-v1.2.3` tag also publishes it as a GitHub release; bump the version in `app/tauri.conf.json` and `app/Cargo.toml` first.
 
 Core only, any OS:
 
