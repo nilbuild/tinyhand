@@ -7,12 +7,19 @@ final class InputTap {
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
+    var onMouseModeChanged: ((Bool) -> Void)?
 
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
     private var _interactPress = false
+    private var _switchKey: CGEventFlags = []
+    private var _mouseMode = false
+    private var switchDownAt: UInt64?
+    private var lastHeld: CGEventFlags = []
+    private static let switchTapMaxNs: UInt64 = 400_000_000
+    private static let modifierMask: CGEventFlags = [.maskShift, .maskAlternate, .maskCommand, .maskControl]
 
     var passThroughRects: [CGRect] {
         get { lock.withLock { _passThroughRects } }
@@ -26,6 +33,26 @@ final class InputTap {
     var interactKey: CGEventFlags {
         get { lock.withLock { _interactKey } }
         set { lock.withLock { _interactKey = newValue } }
+    }
+
+    var switchKey: CGEventFlags {
+        get { lock.withLock { _switchKey } }
+        set { lock.withLock { _switchKey = newValue } }
+    }
+
+    /// Latched by tapping the switch key: clicks reach the app until it is tapped again.
+    var mouseMode: Bool {
+        get { lock.withLock { _mouseMode } }
+        set {
+            let changed = lock.withLock { () -> Bool in
+                let was = _mouseMode
+                _mouseMode = newValue
+                return was != newValue
+            }
+            if changed {
+                DispatchQueue.main.async { [weak self] in self?.onMouseModeChanged?(newValue) }
+            }
+        }
     }
 
     var interactPressing: Bool {
@@ -54,7 +81,9 @@ final class InputTap {
             (1 << CGEventType.otherMouseUp.rawValue) |
             (1 << CGEventType.leftMouseDragged.rawValue) |
             (1 << CGEventType.rightMouseDragged.rawValue) |
-            (1 << CGEventType.otherMouseDragged.rawValue)
+            (1 << CGEventType.otherMouseDragged.rawValue) |
+            (1 << CGEventType.flagsChanged.rawValue) |
+            (1 << CGEventType.keyDown.rawValue)
 
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
@@ -118,6 +147,31 @@ final class InputTap {
         maxWaitMs = 0
     }
 
+    /// A tap is the switch key pressed and released on its own, quickly, with no key or click in between.
+    private func trackSwitchKey(_ flags: CGEventFlags) {
+        let key = switchKey
+        guard !key.isEmpty else {
+            switchDownAt = nil
+            return
+        }
+        let held = flags.intersection(InputTap.modifierMask)
+        let now = DispatchTime.now().uptimeNanoseconds
+        defer { lastHeld = held }
+        if held == key {
+            if lastHeld.isEmpty {
+                switchDownAt = now
+            }
+        } else if held.isEmpty, let start = switchDownAt {
+            switchDownAt = nil
+            let buttonDown = (0..<3).contains { CGEventSource.buttonState(.hidSystemState, button: CGMouseButton(rawValue: $0)!) }
+            if now &- start < InputTap.switchTapMaxNs && !buttonDown {
+                mouseMode.toggle()
+            }
+        } else {
+            switchDownAt = nil
+        }
+    }
+
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if event.timestamp > 0 {
             let wait = Double(DispatchTime.now().uptimeNanoseconds &- event.timestamp) / 1_000_000
@@ -136,6 +190,23 @@ final class InputTap {
         }
 
         guard active else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        switch type {
+        case .flagsChanged:
+            trackSwitchKey(event.flags)
+            return Unmanaged.passUnretained(event)
+        case .keyDown:
+            switchDownAt = nil
+            return Unmanaged.passUnretained(event)
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            switchDownAt = nil
+        default:
+            break
+        }
+
+        if mouseMode {
             return Unmanaged.passUnretained(event)
         }
 

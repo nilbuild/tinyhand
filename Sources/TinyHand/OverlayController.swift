@@ -12,6 +12,7 @@ final class OverlayController {
     private let inputTap = InputTap()
     private let tapSound = TapSound()
     private var interactHeld = false
+    private var mouseModeOn = false
     private var menuHover = false
     private var guardCursorUntil = Date.distantPast
     private var timer: Timer?
@@ -106,6 +107,10 @@ final class OverlayController {
             self?.noteButtonEvent()
         }
 
+        inputTap.onMouseModeChanged = { [weak self] on in
+            self?.mouseModeChanged(on)
+        }
+
         toolbar.onPick = { [weak self] style in
             self?.pick(style)
         }
@@ -125,12 +130,40 @@ final class OverlayController {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
+            self?.inputTap.switchKey = Preferences.switchKey.cgFlags
+            if Preferences.switchKey == .off {
+                self?.inputTap.mouseMode = false
+            }
             self?.armView.updateInkColor()
             self?.tapSound.load(Preferences.tapSound)
             if let self = self, self.armView.style != PointerStyle.saved {
                 self.pick(PointerStyle.saved)
             }
         }
+    }
+
+    /// True while the pointer is on but a tap of the switch key has handed clicks back to the apps.
+    var isMouseMode: Bool { isActive && inputTap.mouseMode }
+
+    private func mouseModeChanged(_ on: Bool) {
+        guard isActive else {
+            onActiveChanged?()
+            return
+        }
+        Log.write(on ? "mouse mode on" : "mouse mode off")
+        if on {
+            release()
+        }
+        let key = Preferences.switchKey.symbol
+        if Preferences.switchHint {
+            toolbar.showHint(on ? [("Mouse", "clicks reach the app"), ("Tap \(key)", "for the hand")]
+                                : [("Hand", "clicks are taps"), ("Tap \(key)", "for the mouse")])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                self?.toolbar.hideHint()
+            }
+        }
+        wake()
+        onActiveChanged?()
     }
 
     var soundOn: Bool {
@@ -266,6 +299,8 @@ final class OverlayController {
             options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
         let installed = inputTap.install()
         inputTap.interactKey = Preferences.interactKey.cgFlags
+        inputTap.switchKey = Preferences.switchKey.cgFlags
+        inputTap.mouseMode = false
         inputTap.setActive(installed)
         Log.write("activate trusted=\(AXIsProcessTrusted()) tapInstalled=\(installed)")
 
@@ -280,6 +315,9 @@ final class OverlayController {
             var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw")]
             if Preferences.interactKey != .off {
                 parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
+            }
+            if Preferences.switchKey != .off {
+                parts.append(("Tap \(Preferences.switchKey.symbol)", "for the mouse"))
             }
             parts.append(("Esc", "to exit"))
             toolbar.showHint(parts)
@@ -304,6 +342,8 @@ final class OverlayController {
         timerInterval = 0
         removeIdleMonitors()
         inputTap.setActive(false)
+        inputTap.mouseMode = false
+        mouseModeOn = false
         if let a = activity {
             ProcessInfo.processInfo.endActivity(a)
             activity = nil
@@ -345,13 +385,14 @@ final class OverlayController {
         let key = Preferences.interactKey.cgFlags
         let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
         interactHeld = interacting
+        mouseModeOn = inputTap.mouseMode
         menuHover = overMenu
-        let normal = !drawing && !Preferences.interactKeepsHand && (interacting || overMenu || ownMenuOpen)
+        let normal = !drawing && !Preferences.interactKeepsHand && (interacting || mouseModeOn || overMenu || ownMenuOpen)
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            let why = interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
+            let why = interacting ? "interact key" : mouseModeOn ? "mouse mode" : menuBar.contains(mouse) ? "menu bar" : "menu"
             Log.write(normal ? "real cursor (\(why)) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
@@ -561,7 +602,7 @@ final class OverlayController {
 
         updateZones(mouse: mouse, screen: screen)
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
-        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld
+        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld && !mouseModeOn
         if window.ignoresMouseEvents == catchMouse {
             window.ignoresMouseEvents = !catchMouse
         }

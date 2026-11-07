@@ -231,7 +231,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         image?.size = NSSize(width: 18, height: 18)
         image?.isTemplate = true
         statusItem.button?.image = image
-        statusItem.button?.toolTip = overlay.isActive
+        let mouse = overlay.isMouseMode
+        statusItem.button?.contentTintColor = mouse ? .systemOrange : nil
+        statusItem.button?.toolTip = mouse
+            ? "TinyHand is in mouse mode — tap \(Preferences.switchKey.symbol) for the hand, click to turn off"
+            : overlay.isActive
             ? "TinyHand is on — click to turn off, right-click for the menu"
             : "TinyHand — click to turn on, right-click for the menu"
     }

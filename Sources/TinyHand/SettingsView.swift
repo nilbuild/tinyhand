@@ -448,6 +448,27 @@ private struct GeneralPage: View {
                     }
                 }
             }
+            Card(title: "Mouse mode") {
+                Row("Tap to switch", detail: Preferences.switchKey == .off
+                    ? "Off."
+                    : "Tap \(Preferences.switchKey.symbol) on its own to click for real; tap again for the hand. The menu bar icon turns orange.") {
+                    Picker("", selection: model.binding({ Preferences.switchKey }, { Preferences.switchKey = $0 })) {
+                        ForEach(SwitchKey.allCases, id: \.self) { key in
+                            Text(key.title).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                if Preferences.switchKey != .off {
+                    Row("Show a hint when switching", detail: "A short message says whether clicks are taps or reach the app.") {
+                        Toggle("", isOn: model.binding({ Preferences.switchHint }, { Preferences.switchHint = $0 }))
+                            .toggleStyle(.switch).labelsHidden().focusable(false)
+                    }
+                }
+            }
             Card(title: "Startup") {
                 Row("Open TinyHand when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))

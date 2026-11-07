@@ -42,6 +42,40 @@ enum InteractKey: String, CaseIterable {
     }
 }
 
+enum SwitchKey: String, CaseIterable {
+    case shift, option, command, control, off
+
+    var title: String {
+        switch self {
+        case .shift: return "⇧ Shift"
+        case .option: return "⌥ Option"
+        case .command: return "⌘ Command"
+        case .control: return "⌃ Control"
+        case .off: return "Off"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .shift: return "⇧"
+        case .option: return "⌥"
+        case .command: return "⌘"
+        case .control: return "⌃"
+        case .off: return ""
+        }
+    }
+
+    var cgFlags: CGEventFlags {
+        switch self {
+        case .shift: return .maskShift
+        case .option: return .maskAlternate
+        case .command: return .maskCommand
+        case .control: return .maskControl
+        case .off: return []
+        }
+    }
+}
+
 enum InkChoice: String, CaseIterable {
     case match, red, orange, yellow, green, blue, purple, white, black
 
@@ -134,6 +168,17 @@ enum Preferences {
         set { set(newValue.rawValue, "interactKey") }
     }
 
+    static var switchKey: SwitchKey {
+        get { defaults.string(forKey: "switchKey").flatMap(SwitchKey.init(rawValue:)) ?? .shift }
+        set { set(newValue.rawValue, "switchKey") }
+    }
+
+    /// Whether switching between the hand and the mouse shows a short hint.
+    static var switchHint: Bool {
+        get { defaults.object(forKey: "switchHint") as? Bool ?? true }
+        set { set(newValue, "switchHint") }
+    }
+
     static var inkChoice: InkChoice {
         get { defaults.string(forKey: "inkChoice").flatMap(InkChoice.init(rawValue:)) ?? .match }
         set { set(newValue.rawValue, "inkChoice") }
@@ -176,7 +221,7 @@ enum Preferences {
 
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
-                    "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
+                    "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "switchKey", "switchHint", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound"] {
             defaults.removeObject(forKey: key)
         }
