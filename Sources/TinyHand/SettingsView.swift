@@ -932,20 +932,28 @@ private struct AppearancePage: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
-        Card(title: "Pointer") {
-            Row("Size") {
-                HStack(spacing: 10) {
-                    Image(systemName: "hand.point.up.left.fill").font(.system(size: 10)).foregroundColor(.secondary)
-                    Slider(value: model.binding({ Double(Preferences.pointerSize) }, { Preferences.pointerSize = CGFloat($0) }),
-                           in: Double(Preferences.pointerSizeRange.lowerBound)...Double(Preferences.pointerSizeRange.upperBound))
-                        .frame(width: 180)
-                        .focusable(false)
-                    Image(systemName: "hand.point.up.left.fill").font(.system(size: 16)).foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 22) {
+            Card(title: "Pointer") {
+                Row("Size") {
+                    HStack(spacing: 10) {
+                        Image(systemName: "hand.point.up.left.fill").font(.system(size: 10)).foregroundColor(.secondary)
+                        Slider(value: model.binding({ Double(Preferences.pointerSize) }, { Preferences.pointerSize = CGFloat($0) }),
+                               in: Double(Preferences.pointerSizeRange.lowerBound)...Double(Preferences.pointerSizeRange.upperBound))
+                            .frame(width: 180)
+                            .focusable(false)
+                        Image(systemName: "hand.point.up.left.fill").font(.system(size: 16)).foregroundColor(.secondary)
+                    }
+                }
+                Row("Shadow under the pointer") {
+                    Toggle("", isOn: model.binding({ Preferences.showShadow }, { Preferences.showShadow = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
             }
-            Row("Shadow under the pointer") {
-                Toggle("", isOn: model.binding({ Preferences.showShadow }, { Preferences.showShadow = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
+            Card(title: "Toolbar") {
+                Row("Show the toolbar", detail: Preferences.showToolbar ? "Appears when the pointer turns on and when you move to the bottom of the screen." : "Hidden while you present. Turn it back on to switch pointers.") {
+                    Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
             }
         }
     }
