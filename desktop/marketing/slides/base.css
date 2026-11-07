@@ -1,0 +1,8 @@
+/* Sample lesson slides used as backgrounds for TinyHand screenshots (1600×1000). */
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1600px; height: 1000px; overflow: hidden; }
+body { font-family: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif; color: #1f1d2b; background: #f4f2fb; }
+.slide { position: absolute; inset: 0; background: linear-gradient(160deg, #ffffff 0%, #fbfaff 60%, #f3efff 100%); }
+.slide::after { content: ""; position: absolute; right: -140px; bottom: -160px; width: 520px; height: 520px; border-radius: 50%; background: rgba(135, 84, 242, .07); }
+h1 { position: absolute; left: 120px; top: 92px; margin: 0; font-size: 64px; font-weight: 800; letter-spacing: -1px; }
+.tag { position: absolute; left: 124px; top: 56px; font-size: 22px; font-weight: 700; color: #8754f2; letter-spacing: 2px; text-transform: uppercase; }
