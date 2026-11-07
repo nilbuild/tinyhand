@@ -19,6 +19,7 @@ final class OverlayController {
     private var downPoint: CGPoint?
     private var buttonSeenDown = false
     private var dragEvents = 0
+    private var tapPending = false
 
     private let toolbar = Toolbar()
     private var revealUntil = Date.distantPast
@@ -68,7 +69,7 @@ final class OverlayController {
             }
             self.armView.press()
             self.armView.held = true
-            self.tapSound.play()
+            self.tapPending = true
             self.toolbar.hideHint()
             self.downPoint = self.localMouse()
             self.dragEvents = 0
@@ -181,6 +182,10 @@ final class OverlayController {
             let moved = localMouse().map { Int(hypot($0.x - start.x, $0.y - start.y)) } ?? -1
             Log.write("release, drag events=\(dragEvents) moved=\(moved)pt stroke drawn=\(armView.ink.isDrawing)")
         }
+        if tapPending && !armView.ink.isDrawing {
+            tapSound.play()
+        }
+        tapPending = false
         buttonSeenDown = false
         armView.held = false
         downPoint = nil
@@ -218,6 +223,7 @@ final class OverlayController {
             if hypot(p.x - start.x, p.y - start.y) < 4 {
                 return
             }
+            tapPending = false
             ink.begin(at: start, width: armView.inkWidth)
         }
         ink.extend(to: p)
@@ -308,6 +314,7 @@ final class OverlayController {
             ProcessInfo.processInfo.endActivity(a)
             activity = nil
         }
+        tapPending = false
         armView.held = false
         downPoint = nil
         armView.ink.clear()
