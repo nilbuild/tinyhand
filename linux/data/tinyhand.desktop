@@ -1,0 +1,28 @@
+[Desktop Entry]
+Type=Application
+Name=TinyHand
+GenericName=Screen pointer
+Comment=A tiny hand on a stick that points at things on your screen
+Exec=tinyhand
+Icon=tinyhand
+Terminal=false
+Categories=Utility;Accessibility;Qt;KDE;
+Keywords=pointer;presentation;laser;hand;cursor;
+StartupNotify=false
+X-DBUS-ServiceName=app.tinyhand
+Actions=Toggle;Clear;Settings;
+
+[Desktop Action Toggle]
+Name=Turn pointer on or off
+Exec=tinyhand --toggle
+Icon=tinyhand
+
+[Desktop Action Clear]
+Name=Clear the drawing
+Exec=tinyhand --clear
+Icon=tinyhand
+
+[Desktop Action Settings]
+Name=Settings
+Exec=tinyhand --settings
+Icon=tinyhand

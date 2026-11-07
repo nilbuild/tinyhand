@@ -13,7 +13,7 @@ A tiny hand on a stick that points at things on your Mac screen.
 [![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/nilbuild/tinyhand/releases/latest/download/TinyHand.dmg)
 [![Visit website](https://img.shields.io/badge/Visit_website-ffffff?style=for-the-badge&logo=safari&logoColor=black)](https://tinyhand.app)
 
-macOS 13 or later, Apple Silicon and Intel.
+macOS 13 or later, Apple Silicon and Intel. There is also a port for [KDE Plasma on Linux](linux/README.md).
 
 ## Install
 
@@ -32,6 +32,10 @@ Open `TinyHand.dmg`, drag TinyHand to Applications and allow **Accessibility** w
 
 While the pointer is on, a small toolbar at the bottom of the screen lets you pick one of
 36 hands or a laser dot, mute the tap sound, or exit.
+
+## Linux
+
+A Qt port for KDE Plasma lives in [`linux/`](linux/). It uses the same hands and sounds. See [linux/README.md](linux/README.md) for the install steps.
 
 ## License
 
