@@ -23,7 +23,9 @@ pub enum KeyAction {
 #[derive(Default, Debug)]
 pub struct InteractFilter {
     held: bool,
-    replayed: bool,
+    /// The system has this press, so it must also get the release: either we
+    /// replayed it, or it went down before the hook was there.
+    given: bool,
 }
 
 impl InteractFilter {
@@ -38,28 +40,35 @@ impl InteractFilter {
 
     /// Decide what to do with a key event. `is_interact` says whether this
     /// key is the interact key (either side, e.g. left or right Alt).
-    pub fn key(&mut self, is_interact: bool, down: bool) -> KeyAction {
+    /// `system_down` says the system already considers this key pressed.
+    ///
+    /// Never swallow the release of a key the system thinks is down: it would
+    /// stay stuck, and everything typed afterwards becomes a shortcut. That is
+    /// what happens when Ctrl+Alt+H turns the pointer on: Alt went down before
+    /// the hook was installed and comes up after.
+    pub fn key(&mut self, is_interact: bool, down: bool, system_down: bool) -> KeyAction {
         if is_interact {
             if down {
                 self.held = true;
-                // Auto-repeat after a replay can go through; apps already saw the press.
-                if self.replayed {
+                self.given |= system_down;
+                // Auto-repeat of a press the system has can go through.
+                if self.given {
                     KeyAction::Pass
                 } else {
                     KeyAction::Swallow
                 }
             } else {
-                let replayed = self.replayed;
+                let swallowed_press = self.held && !self.given && !system_down;
                 self.held = false;
-                self.replayed = false;
-                if replayed {
-                    KeyAction::Pass
-                } else {
+                self.given = false;
+                if swallowed_press {
                     KeyAction::Swallow
+                } else {
+                    KeyAction::Pass
                 }
             }
-        } else if down && self.held && !self.replayed {
-            self.replayed = true;
+        } else if down && self.held && !self.given {
+            self.given = true;
             KeyAction::Replay
         } else {
             KeyAction::Pass
@@ -75,31 +84,63 @@ mod tests {
     #[test]
     fn hold_alone_never_reaches_apps() {
         let mut f = InteractFilter::default();
-        assert_eq!(f.key(true, true), Swallow);
+        assert_eq!(f.key(true, true, false), Swallow);
         assert!(f.held());
-        assert_eq!(f.key(true, true), Swallow, "auto-repeat");
-        assert_eq!(f.key(true, false), Swallow);
+        assert_eq!(f.key(true, true, false), Swallow, "auto-repeat");
+        assert_eq!(f.key(true, false, false), Swallow);
         assert!(!f.held());
     }
 
     #[test]
     fn shortcut_is_replayed_once() {
         let mut f = InteractFilter::default();
-        assert_eq!(f.key(true, true), Swallow); // Alt down
-        assert_eq!(f.key(false, true), Replay); // Tab down → inject Alt, Tab
-        assert_eq!(f.key(false, false), Pass); // Tab up
-        assert_eq!(f.key(false, true), Pass); // Tab again (Alt already given)
-        assert_eq!(f.key(true, true), Pass); // Alt auto-repeat
-        assert_eq!(f.key(true, false), Pass); // Alt up pairs with the replayed down
+        assert_eq!(f.key(true, true, false), Swallow); // Alt down
+        assert_eq!(f.key(false, true, false), Replay); // Tab down → inject Alt, Tab
+        assert_eq!(f.key(false, false, false), Pass); // Tab up
+        assert_eq!(f.key(false, true, false), Pass); // Tab again (Alt already given)
+        assert_eq!(f.key(true, true, true), Pass); // Alt auto-repeat
+        assert_eq!(f.key(true, false, true), Pass); // Alt up pairs with the replayed down
         assert!(!f.held());
         // Next hold starts clean.
-        assert_eq!(f.key(true, true), Swallow);
+        assert_eq!(f.key(true, true, false), Swallow);
     }
 
     #[test]
     fn other_keys_untouched_when_not_held() {
         let mut f = InteractFilter::default();
-        assert_eq!(f.key(false, true), Pass);
-        assert_eq!(f.key(false, false), Pass);
+        assert_eq!(f.key(false, true, false), Pass);
+        assert_eq!(f.key(false, false, false), Pass);
+    }
+
+    /// Ctrl+Alt+H turns the pointer on, so the hook starts with Alt already down.
+    #[test]
+    fn release_of_key_pressed_before_the_hook_passes() {
+        let mut f = InteractFilter::default();
+        assert_eq!(f.key(true, false, true), Pass);
+        assert!(!f.held());
+        // Next hold is hidden from apps as usual.
+        assert_eq!(f.key(true, true, false), Swallow);
+        assert_eq!(f.key(true, false, false), Swallow);
+    }
+
+    #[test]
+    fn auto_repeat_of_key_pressed_before_the_hook_passes() {
+        let mut f = InteractFilter::default();
+        assert_eq!(f.key(true, true, true), Pass);
+        assert!(f.held());
+        assert_eq!(f.key(false, true, true), Pass, "the system already has the key, no replay");
+        assert_eq!(f.key(true, false, true), Pass);
+        assert!(!f.held());
+    }
+
+    /// Left and right Alt together: only one is replayed, neither may stick.
+    #[test]
+    fn both_sides_held_never_swallow_a_release_the_system_needs() {
+        let mut f = InteractFilter::default();
+        assert_eq!(f.key(true, true, false), Swallow); // left down
+        assert_eq!(f.key(true, true, false), Swallow); // right down
+        assert_eq!(f.key(false, true, false), Replay); // replays right
+        assert_eq!(f.key(true, false, false), Pass); // left up
+        assert_eq!(f.key(true, false, true), Pass); // right up
     }
 }

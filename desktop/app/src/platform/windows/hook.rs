@@ -25,7 +25,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::{GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL};
 use tinyhand_core::interact::{InteractFilter, KeyAction};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, VIRTUAL_KEY,
+    GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetMessageW, PeekMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, HC_ACTION, KBDLLHOOKSTRUCT,
@@ -205,9 +205,12 @@ impl Shared {
         if target && down {
             HELD.with(|h| *h.borrow_mut() = Some(Held { vk: info.vkCode, scan: info.scanCode, extended }));
         }
+        // Windows updates this after the hook returns, so it still tells us
+        // whether the system had the key down before this event.
+        let system_down = target && unsafe { GetAsyncKeyState(info.vkCode as i32) } < 0;
         let action = FILTER.with(|f| {
             let mut f = f.borrow_mut();
-            let a = f.key(target, down);
+            let a = f.key(target, down, system_down);
             self.interact_held.store(f.held(), Ordering::Relaxed);
             a
         });
