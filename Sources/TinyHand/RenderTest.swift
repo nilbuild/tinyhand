@@ -30,6 +30,7 @@ enum RenderTest {
             if !resting {
                 view.press()
                 view.held = true
+                view.skipSwing()
             }
             let center = CGPoint(x: target.x + 40, y: target.y - 8)
             let a0 = atan2(target.y - center.y, target.x - center.x)
