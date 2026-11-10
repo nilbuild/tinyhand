@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The toolbar and settings windows: app commands plus listening for state events.",
+  "windows": ["toolbar", "settings"],
+  "permissions": ["core:default"]
+}

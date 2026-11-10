@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TinyHand toolbar</title>
+<!--
+  Mirrors Toolbar.swift: 40pt buttons, 10pt corners, 6pt spacing, 8/10pt
+  insets, a 16pt dark-glass bar, and the ink swatches in a small tray above.
+  No inline style="" attributes: Tauri's CSP blocks them.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body {
+    padding: 14px; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    font: 12px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    transition: opacity .35s ease;
+  }
+  body.away { opacity: 0; transition-duration: .35s; }
+  body:not(.away) { transition-duration: .15s; }
+  .glass {
+    background: rgba(24, 24, 27, .9); border: 1px solid rgba(255, 255, 255, .12);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+  }
+  .bar { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 16px; }
+  #styles { display: contents; }
+  button {
+    all: unset; box-sizing: border-box; flex: none; width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; cursor: default;
+  }
+  button:hover { background: rgba(255, 255, 255, .08); }
+  button.on, button.on:hover { background: rgba(255, 255, 255, .18); }
+  button img { width: 40px; height: 40px; pointer-events: none; }
+  .laser { position: relative; width: 36px; height: 36px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 41, 31, .55) 0%, rgba(255, 41, 31, 0) 70%); }
+  .laser::before { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: #ff291f; }
+  .laser::after { content: ""; position: absolute; inset: 15px; border-radius: 50%; background: rgba(255, 219, 209, .95); }
+  .divider { flex: none; width: 1px; height: 24px; background: rgba(255, 255, 255, .18); }
+  .tool svg { width: 18px; height: 18px; fill: rgba(255, 255, 255, .85); }
+  .dot { position: relative; width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+  .dot::after { content: ""; position: absolute; left: 6px; top: 5px; width: 9px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .35); }
+  .dot.match { background: conic-gradient(from 90deg, #ff3b30, #ff9500, #ffcc00, #34c759, #007aff, #af52de, #ff3b30); }
+  .dot.match::after { display: none; }
+  .tray { display: none; flex-direction: row; gap: 2px; padding: 5px 6px; border-radius: 14px; }
+  .tray.open { display: flex; }
+  .tray button { width: 30px; height: 30px; border-radius: 15px; }
+  .tray .dot { width: 20px; height: 20px; }
+  .tray .dot::after { left: 5px; top: 4px; width: 7px; height: 4px; }
+  .sound-off { display: none; }
+  .muted .sound-on { display: none; }
+  .muted .sound-off { display: inline; }
+</style>
+</head>
+<body>
+<div class="tray glass" id="tray"></div>
+<div class="bar glass" id="bar">
+  <div id="styles"></div>
+  <div class="divider"></div>
+  <button class="tool" id="ink"><div class="dot" id="ink-dot"></div></button>
+  <button class="tool" id="sound">
+    <svg viewBox="0 0 24 24">
+      <path d="M3 9.5v5c0 .6.4 1 1 1h3l4.3 3.6c.6.5 1.7.1 1.7-.8V5.7c0-.9-1.1-1.3-1.7-.8L7 8.5H4c-.6 0-1 .4-1 1z"/>
+      <path class="sound-on" d="M15.5 8.6a.9.9 0 0 1 1.3 0 4.8 4.8 0 0 1 0 6.8.9.9 0 1 1-1.3-1.3 3 3 0 0 0 0-4.2.9.9 0 0 1 0-1.3zm2.7-2.7a.9.9 0 0 1 1.3 0 8.6 8.6 0 0 1 0 12.2.9.9 0 1 1-1.3-1.3 6.8 6.8 0 0 0 0-9.6.9.9 0 0 1 0-1.3z"/>
+      <path class="sound-off" d="M16.3 9.3a.9.9 0 0 1 1.3 0l1.6 1.6 1.6-1.6a.9.9 0 1 1 1.3 1.3L20.5 12l1.6 1.6a.9.9 0 1 1-1.3 1.3l-1.6-1.6-1.6 1.6a.9.9 0 1 1-1.3-1.3l1.6-1.6-1.6-1.6a.9.9 0 0 1 0-1.3z"/>
+    </svg>
+  </button>
+  <button class="tool" id="exit">
+    <svg viewBox="0 0 24 24"><path d="M6.3 6.3a1 1 0 0 1 1.4 0L12 10.6l4.3-4.3a1 1 0 1 1 1.4 1.4L13.4 12l4.3 4.3a1 1 0 0 1-1.4 1.4L12 13.4l-4.3 4.3a1 1 0 0 1-1.4-1.4l4.3-4.3-4.3-4.3a1 1 0 0 1 0-1.4z"/></svg>
+  </button>
+</div>
+<script src="i18n.js"></script>
+<script>
+  const { invoke, convertFileSrc } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const $ = id => document.getElementById(id);
+  let state = null;
+  let last = '';
+  let L = 'en';
+
+  function inkColor(p) {
+    if (p.style === 'laser') return '#ff291f';
+    const choice = state.inks.find(([id]) => id === p.ink);
+    return (choice && choice[2]) || (state.styles.find(s => s.id === p.style) || {}).ink || '#8754f2';
+  }
+
+  function dot(color, match) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (match ? ' match' : '');
+    if (color) d.style.background = color;
+    return d;
+  }
+
+  function render(s) {
+    state = s;
+    const p = state.prefs;
+    const key = JSON.stringify([p.pinned, p.style, p.handSound, p.laserSound, p.ink, p.language]);
+    if (key === last) return;
+    last = key;
+    L = I18n.lang(p);
+    document.documentElement.lang = L;
+    $('ink').title = I18n.t(L, 'inkTitle');
+    $('exit').title = I18n.t(L, 'exitTitle');
+    const titles = Object.fromEntries(state.styles.map(x => [x.id, x.title]));
+    // Like the Mac app, the current style shows even if it isn't pinned.
+    const shown = p.pinned.includes(p.style) ? p.pinned : [...p.pinned, p.style];
+    $('styles').replaceChildren(...shown.map(id => {
+      const b = document.createElement('button');
+      b.title = I18n.hand(L, id, titles[id] || id);
+      b.className = id === p.style ? 'on' : '';
+      if (id === 'laser') {
+        const l = document.createElement('div');
+        l.className = 'laser';
+        b.append(l);
+      } else {
+        const img = document.createElement('img');
+        img.src = convertFileSrc(id, 'thumb');
+        img.alt = '';
+        b.append(img);
+      }
+      b.onclick = () => invoke('pick_style', { id });
+      return b;
+    }));
+    $('ink-dot').replaceWith(Object.assign(dot(inkColor(p)), { id: 'ink-dot' }));
+    $('tray').replaceChildren(...state.inks.map(([id, title, color]) => {
+      const b = document.createElement('button');
+      b.title = I18n.ink(L, id, title);
+      b.className = id === p.ink ? 'on' : '';
+      b.append(dot(color, id === 'match'));
+      b.onclick = () => {
+        setTray(false);
+        invoke('set_prefs', { prefs: { ...state.prefs, ink: id } });
+      };
+      return b;
+    }));
+    const on = p.style === 'laser' ? p.laserSound : p.handSound;
+    $('sound').classList.toggle('muted', !on);
+    $('sound').title = I18n.t(L, on ? 'soundOnTitle' : 'soundOffTitle');
+    fit();
+  }
+
+  function setTray(open) {
+    $('tray').classList.toggle('open', open);
+    $('ink').classList.toggle('on', open);
+    fit();
+  }
+
+  // Window size = everything visible. The tray sits above the bar, centred
+  // on the ink button; the window grows upwards (the overlay keeps its
+  // bottom edge pinned above the taskbar).
+  function fit() {
+    const tray = $('tray');
+    if (tray.classList.contains('open')) {
+      const ink = $('ink').getBoundingClientRect();
+      const bodyLeft = 14;
+      const left = Math.max(0, ink.left + ink.width / 2 - tray.offsetWidth / 2 - bodyLeft);
+      tray.style.marginLeft = left + 'px';
+    }
+    const r = document.body.getBoundingClientRect();
+    invoke('toolbar_resize', { width: Math.ceil(r.width), height: Math.ceil(r.height) });
+  }
+
+  $('ink').onclick = () => setTray(!$('tray').classList.contains('open'));
+  $('sound').onclick = () => invoke('toggle_sound');
+  $('exit').onclick = () => invoke('set_active', { on: false });
+  new ResizeObserver(fit).observe(document.body);
+
+  listen('state', e => render(e.payload));
+  listen('reveal', e => {
+    document.body.classList.toggle('away', !e.payload);
+    if (!e.payload) setTray(false);
+  });
+  invoke('get_state').then(render);
+</script>
+</body>
+</html>

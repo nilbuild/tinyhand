@@ -1,0 +1,47 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ["desktop/**", "assets/**", ".github/workflows/windows.yml"]
+    # Not v*: that tag is the Mac release (release.yml).
+    tags: ["windows-v*"]
+  pull_request:
+    paths: ["desktop/**", "assets/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - name: Test core
+        run: cargo test -p tinyhand-core
+      - name: Build installer
+        working-directory: desktop/app
+        run: npx --yes @tauri-apps/cli@2 build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TinyHand-windows
+          path: desktop/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/windows-v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          NOTES="$(git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents)')"
+          gh release create "$GITHUB_REF_NAME" target/release/bundle/nsis/*.exe \
+            --title "TinyHand for Windows ${GITHUB_REF_NAME#windows-v}" --notes "$NOTES"
