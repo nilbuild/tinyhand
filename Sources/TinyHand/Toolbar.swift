@@ -15,6 +15,54 @@ final class Toolbar {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
 
+    private final class Slider: NSSlider {
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    }
+
+    /// Slider drawn in the toolbar's own look: a thin white track on the dark glass and a plain white knob.
+    private final class SliderCell: NSSliderCell {
+        /// The knob's centre runs from one end of the rail to the other, so at Off and at the top
+        /// the knob sits right over the rail's end and no rail shows beyond it.
+        private static let inset: CGFloat = 8
+
+        private var fraction: CGFloat {
+            let span = maxValue - minValue
+            return span > 0 ? CGFloat((doubleValue - minValue) / span) : 0
+        }
+
+        override func drawBar(inside rect: NSRect, flipped: Bool) {
+            let i = SliderCell.inset
+            let bar = NSRect(x: rect.minX + i, y: rect.midY - 2, width: rect.width - 2 * i, height: 4)
+            NSColor(white: 1, alpha: 0.18).setFill()
+            NSBezierPath(roundedRect: bar, xRadius: 2, yRadius: 2).fill()
+            var filled = bar
+            filled.size.width = fraction * bar.width
+            NSColor(white: 1, alpha: 0.85).setFill()
+            NSBezierPath(roundedRect: filled, xRadius: 2, yRadius: 2).fill()
+        }
+
+        override func knobRect(flipped: Bool) -> NSRect {
+            let bar = barRect(flipped: flipped)
+            let i = SliderCell.inset
+            let cx = bar.minX + i + fraction * (bar.width - 2 * i)
+            return NSRect(x: cx - 10, y: bar.midY - 10, width: 20, height: 20)
+        }
+
+        override func drawKnob(_ knobRect: NSRect) {
+            let d: CGFloat = 14
+            let dot = NSRect(x: knobRect.midX - d / 2, y: knobRect.midY - d / 2, width: d, height: d)
+            NSGraphicsContext.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor(white: 0, alpha: 0.4)
+            shadow.shadowBlurRadius = 3
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
+            shadow.set()
+            NSColor.white.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+    }
+
     private let panel: Panel
     private let stack = NSStackView()
     private var styleButtons: [PointerStyle: Button] = [:]
@@ -25,13 +73,24 @@ final class Toolbar {
     private var inkOpen = false
     private let permissionButton = Button()
     private var soundButton: Button?
+    private var rangeButton: Button?
+    private var rangeTray: Panel?
+    private var rangeSlider: Slider?
+    private var rangeLabel: NSTextField?
+    private var rangeOpen = false
     private(set) var revealed = false
 
     private let tray: Panel
     private let trayStack = NSStackView()
     private var hint: Panel?
 
-    var frame: CGRect { inkOpen ? panel.frame.union(tray.frame) : panel.frame }
+    var frame: CGRect {
+        var f = inkOpen ? panel.frame.union(tray.frame) : panel.frame
+        if rangeOpen, let t = rangeTray {
+            f = f.union(t.frame)
+        }
+        return f
+    }
 
     init() {
         panel = Panel(contentRect: CGRect(x: 0, y: 0, width: 300, height: 56),
@@ -92,6 +151,11 @@ final class Toolbar {
         }
         inkButton = ink
         stack.addArrangedSubview(ink)
+        let rangeButtonView = makeButton(symbol: "hand.tap", tip: "Swing range") { [weak self] in
+            self?.setSwingRangeOpen(!(self?.rangeOpen ?? true))
+        }
+        rangeButton = rangeButtonView
+        stack.addArrangedSubview(rangeButtonView)
         let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Tap sound") { [weak self] in
             self?.onToggleSound?()
         }
@@ -127,11 +191,114 @@ final class Toolbar {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildStyles()
             self?.refreshInk()
+            self?.refreshSwingRange()
         }
     }
 
     private func toggleInk() {
         setInkOpen(!inkOpen)
+    }
+
+    /// A small tray above the toolbar with a slider for how far the stick swings up on a tap.
+    private func setSwingRangeOpen(_ open: Bool) {
+        guard open != rangeOpen, let button = rangeButton else {
+            return
+        }
+        rangeOpen = open
+        button.layer?.backgroundColor = open ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
+        let t = rangeTray ?? makeSwingRangeTray()
+        if open {
+            setInkOpen(false)
+            refreshSwingRange()
+            let r = panel.convertToScreen(button.convert(button.bounds, to: nil))
+            let size = t.frame.size
+            t.setFrameOrigin(CGPoint(x: r.midX - size.width / 2, y: panel.frame.maxY + 8))
+            t.invalidateShadow()
+            t.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                t.animator().alphaValue = 1
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.12
+                t.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self = self, !self.rangeOpen else {
+                    return
+                }
+                t.orderOut(nil)
+            })
+        }
+    }
+
+    private func makeSwingRangeTray() -> Panel {
+        let t = Panel(contentRect: CGRect(x: 0, y: 0, width: 260, height: 40),
+                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        t.isOpaque = false
+        t.backgroundColor = .clear
+        t.hasShadow = true
+        t.hidesOnDeactivate = false
+        t.isFloatingPanel = true
+        t.becomesKeyOnlyIfNeeded = true
+        t.level = panel.level
+        t.collectionBehavior = panel.collectionBehavior
+        t.alphaValue = 0
+        let background = NSVisualEffectView.darkGlass(radius: 14)
+        t.contentView = background
+
+        let slider = Slider()
+        slider.cell = SliderCell()
+        slider.minValue = Preferences.swingRangeLimits.lowerBound
+        slider.maxValue = Preferences.swingRangeLimits.upperBound
+        slider.doubleValue = Preferences.swingRange
+        slider.target = self
+        slider.action = #selector(swingRangeChanged(_:))
+        slider.isContinuous = true
+        slider.toolTip = "Swing range"
+        slider.setAccessibilityLabel("Swing range")
+        slider.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        slider.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        let value = NSTextField(labelWithString: "1.0×")
+        value.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        value.textColor = NSColor(white: 1, alpha: 0.85)
+        value.alignment = .right
+        value.widthAnchor.constraint(equalToConstant: 34).isActive = true
+
+        let row = NSStackView(views: [slider, value])
+        row.orientation = .horizontal
+        row.spacing = 10
+        row.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 12)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            row.topAnchor.constraint(equalTo: background.topAnchor),
+            row.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
+        background.removeFocusRings()
+        row.layoutSubtreeIfNeeded()
+        t.setContentSize(row.fittingSize)
+
+        rangeTray = t
+        rangeSlider = slider
+        rangeLabel = value
+        return t
+    }
+
+    @objc private func swingRangeChanged(_ sender: NSSlider) {
+        let rounded = (sender.doubleValue * 20).rounded() / 20
+        Preferences.swingRange = rounded
+        refreshSwingRange()
+    }
+
+    private func refreshSwingRange() {
+        let k = Preferences.swingRange
+        if let slider = rangeSlider, abs(slider.doubleValue - k) > 0.05 {
+            slider.doubleValue = k
+        }
+        rangeLabel?.stringValue = k < 0.025 ? "Off" : String(format: "%.1f×", k)
     }
 
     private func setInkOpen(_ open: Bool) {
@@ -140,6 +307,7 @@ final class Toolbar {
         }
         inkOpen = open
         if open {
+            setSwingRangeOpen(false)
             if swatches.isEmpty {
                 for choice in InkChoice.allCases {
                     let b = makeButton(image: nil, tip: choice.title, side: 30) { [weak self] in
@@ -260,6 +428,20 @@ final class Toolbar {
         }
         view.cacheDisplay(in: view.bounds, to: rep)
         view.layer?.backgroundColor = nil
+        return rep
+    }
+
+    func snapshotSwingRangeTray() -> NSBitmapImageRep? {
+        setSwingRangeOpen(true)
+        guard let view = rangeTray?.contentView else {
+            return nil
+        }
+        view.layer?.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+        view.layoutSubtreeIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            return nil
+        }
+        view.cacheDisplay(in: view.bounds, to: rep)
         return rep
     }
 
@@ -386,6 +568,7 @@ final class Toolbar {
 
     func hide() {
         setInkOpen(false)
+        setSwingRangeOpen(false)
         hideHint()
         revealed = false
         panel.alphaValue = 0
@@ -399,6 +582,7 @@ final class Toolbar {
         revealed = value
         if !value {
             setInkOpen(false)
+            setSwingRangeOpen(false)
         }
         panel.ignoresMouseEvents = !value
         NSAnimationContext.runAnimationGroup { ctx in

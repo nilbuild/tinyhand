@@ -19,10 +19,26 @@ final class ArmView: NSView {
     private let liftFrac: CGFloat = 0.06
 
     let ink = Ink()
-    var held = false
+    var held = false {
+        didSet {
+            if oldValue && !held {
+                releasedAt = CACurrentMediaTime()
+            }
+        }
+    }
     var inkWidth: CGFloat { max(3, bounds.height * 0.0055) }
 
     private var pressAmount: CGFloat = 0
+    private var tapStart: CFTimeInterval?
+    private var swingRange = CGFloat(Preferences.swingRange)
+    private var releasedAt: CFTimeInterval = 0
+
+    /// Seconds from press() until the fingertip lands on the spot (wind-up + swing-in).
+    /// The tap sound waits this long so it plays on contact.
+    static let swingWindUp: CFTimeInterval = 0.13
+    static let swingIn: CFTimeInterval = 0.09
+    static var strikeDelay: CFTimeInterval { swingWindUp + swingIn }
+    private static let settleTime: CFTimeInterval = 0.12
     private var gripX: CGFloat?
     private var lastPose: [CGFloat] = []
     private var lastLaserPose: [CGFloat] = []
@@ -30,7 +46,7 @@ final class ArmView: NSView {
     private var displayImageHeight = 0
 
     var isSettling: Bool {
-        if pressAmount > 0.002 {
+        if pressAmount > 0.002 || swing(at: CACurrentMediaTime()).press > 0.002 {
             return true
         }
         guard let gx = gripX, let target = gripTarget else {
@@ -82,6 +98,7 @@ final class ArmView: NSView {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.handLenFrac = Preferences.pointerSize
             self?.showShadow = Preferences.showShadow
+            self?.swingRange = CGFloat(Preferences.swingRange)
         }
     }
 
@@ -114,8 +131,69 @@ final class ArmView: NSView {
         fatalError("init(coder:) not used")
     }
 
+    /// At swing range 0 the tap is the original one: no swing, just the small shrink.
+    private var swings: Bool { swingRange > 0.001 }
+
+    /// How long the tap sound waits so it plays when the fingertip lands.
+    var tapSoundDelay: CFTimeInterval { swings && style != .laser ? ArmView.strikeDelay : 0 }
+
     func press() {
         pressAmount = 1
+        tapStart = swings ? CACurrentMediaTime() : nil
+    }
+
+    /// Jump straight to the moment the fingertip touches (used when a drag starts, and by renders).
+    func skipSwing() {
+        if tapStart != nil {
+            tapStart = CACurrentMediaTime() - ArmView.strikeDelay
+        }
+    }
+
+    /// The tap: the stick lifts up (and a little right), the holding hand rising with it,
+    /// then swings down onto the spot and presses. No oscillation.
+    /// Distances are fractions of the screen height; press is 1 on the glass, negative when lifted.
+    private struct Swing {
+        var press: CGFloat = 0
+        var poke: CGFloat = 0
+        var tilt: CGFloat = 0
+        var tipX: CGFloat = 0
+        var tipY: CGFloat = 0
+        var gripX: CGFloat = 0
+        var gripY: CGFloat = 0
+    }
+
+    private func swing(at now: CFTimeInterval) -> Swing {
+        guard let start = tapStart else {
+            return Swing()
+        }
+        let t = now - start
+        let up = ArmView.swingWindUp
+        let strike = ArmView.strikeDelay
+        let k = swingRange
+        func pose(_ e: CGFloat, press: CGFloat) -> Swing {
+            let tipX: CGFloat = 0.025 * k
+            let tipY: CGFloat = 0.2 * k
+            return Swing(press: press, poke: 0.02 * k * e, tilt: -0.03 * k * e,
+                         tipX: tipX * e, tipY: tipY * e, gripX: 0.45 * tipX * e, gripY: 0.45 * tipY * e)
+        }
+        if t < up {
+            let e = 1 - pow(1 - CGFloat(t / up), 3)
+            return pose(e, press: -0.6 * e)
+        }
+        if t < strike {
+            let e = pow(CGFloat((t - up) / (strike - up)), 2)
+            return pose(1 - e, press: -0.6 + 1.6 * e)
+        }
+        if held {
+            return Swing(press: 1)
+        }
+        let since = now - max(start + strike, releasedAt)
+        let press = CGFloat(exp(-since / ArmView.settleTime))
+        if press < 0.001 {
+            tapStart = nil
+            return Swing()
+        }
+        return Swing(press: press)
     }
 
     func aim(cursor: CGPoint) {
@@ -124,11 +202,15 @@ final class ArmView: NSView {
         let gx = gripX.map { $0 + (targetX - $0) * gripFollow } ?? targetX
         gripX = gx
         gripTarget = targetX
-        let grip = CGPoint(x: gx, y: -gripDepthFrac * screenH)
-
         if !held {
             pressAmount += (0 - pressAmount) * 0.18
         }
+
+        if ink.isDrawing {
+            skipSwing()
+        }
+        let sw = swing(at: CACurrentMediaTime())
+        let grip = CGPoint(x: gx + sw.gripX * screenH, y: (sw.gripY - gripDepthFrac) * screenH)
 
         if style == .laser {
             aimLaser(cursor: cursor)
@@ -139,12 +221,17 @@ final class ArmView: NSView {
         }
         updateDisplayImage(a)
 
-        let dx = cursor.x - grip.x
-        let dy = cursor.y - grip.y
+        let toCursor = CGPoint(x: cursor.x - grip.x, y: cursor.y - grip.y)
+        let dist = max(1, hypot(toCursor.x, toCursor.y))
+        let poke = sw.poke * screenH
+        let dx = toCursor.x - toCursor.x / dist * poke + sw.tipX * screenH
+        let dy = toCursor.y - toCursor.y / dist * poke + sw.tipY * screenH
         let reach = hypot(dx, dy)
         let aimAngle = atan2(dy, dx)
 
-        let handPts = handLenFrac * screenH * (1 - 0.06 * pressAmount)
+        // Swing range 0 keeps the original press: pressAmount and a 6% shrink.
+        let press = swings ? sw.press : pressAmount
+        let handPts = handLenFrac * screenH * (1 - (swings ? 0.10 : 0.06) * press)
         let s = handPts / (a.wrist - a.handTop)
         let widthPts = s * a.aspect
         let handTipPts = (a.wrist - a.tip) * s
@@ -154,9 +241,10 @@ final class ArmView: NSView {
         var rodLen = along - handTipPts
         rodLen = max(minRodFrac * screenH, rodLen)
         let tipAngle = atan2(rodLen + handTipPts, tipOffX)
-        let rotation = aimAngle - tipAngle
+        let rotation = aimAngle - tipAngle + sw.tilt
 
-        let lift = currentLift(screenH)
+        let lift = liftFrac * screenH * (1 - 0.8 * press)
+        let pressed = max(0, press)
         let sx = lift * 0.6
         let sy = -lift
         let shadowOffset = CGSize(
@@ -164,7 +252,7 @@ final class ArmView: NSView {
             height: sx * sin(-rotation) + sy * cos(-rotation)
         )
 
-        let pose = [rotation, rodLen, handPts, widthPts, grip.x, lift, pressAmount, showShadow ? 1 : 0, a.aspect]
+        let pose = [rotation, rodLen, handPts, widthPts, grip.x, grip.y, lift, press, showShadow ? 1 : 0, a.aspect]
             .map { ($0 * 100).rounded() }
         guard pose != lastPose else {
             return
@@ -176,8 +264,8 @@ final class ArmView: NSView {
 
         for sub in [rodLayer, handLayer] {
             sub.shadowOffset = shadowOffset
-            sub.shadowRadius = max(1, lift * 0.35) + 5 * pressAmount
-            sub.shadowOpacity = showShadow ? Float(0.26 + 0.02 * pressAmount) : 0
+            sub.shadowRadius = max(1, lift * 0.35) + 5 * pressed
+            sub.shadowOpacity = showShadow ? Float(0.26 + 0.02 * pressed) : 0
         }
 
         rodLayer.bounds = CGRect(x: 0, y: 0, width: widthPts, height: rodLen)
@@ -190,10 +278,6 @@ final class ArmView: NSView {
         group.transform = CATransform3DMakeRotation(rotation, 0, 0, 1)
 
         CATransaction.commit()
-    }
-
-    private func currentLift(_ screenH: CGFloat) -> CGFloat {
-        liftFrac * screenH * (1 - 0.8 * pressAmount)
     }
 
     private func aimLaser(cursor: CGPoint) {

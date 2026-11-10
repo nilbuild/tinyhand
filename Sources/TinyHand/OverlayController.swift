@@ -76,7 +76,15 @@ final class OverlayController {
             }
             self.armView.press()
             self.armView.held = true
-            self.tapSound.play()
+            let delay = self.armView.tapSoundDelay
+            if delay == 0 {
+                self.tapSound.play()
+            } else {
+                // The hand swings up first; play the sound when the fingertip lands.
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.tapSound.play()
+                }
+            }
             self.toolbar.hideHint()
             self.downPoint = self.localMouse()
             self.dragEvents = 0
