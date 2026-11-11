@@ -977,6 +977,13 @@ private struct DrawingPage: View {
         ("After 6 seconds", 6),
         ("After 10 seconds", 10),
         ("Keep until cleared", 0),
+        ("Trail behind the pen", Preferences.trailFade),
+    ]
+    private static let trailSpeeds: [(String, Double)] = [
+        ("Slow", 800),
+        ("Medium", 1400),
+        ("Fast", 2000),
+        ("Very fast", 3000),
     ]
 
     var body: some View {
@@ -1002,7 +1009,36 @@ private struct DrawingPage: View {
                 .fixedSize()
                 .focusable(false)
             }
+            if Preferences.fadeSeconds < 0 {
+                Row("Erasing starts", detail: "Counted from the start of each line.") {
+                    HStack(spacing: 10) {
+                        Slider(value: model.binding({ Preferences.trailDelay }, { Preferences.trailDelay = ($0 * 10).rounded() / 10 }),
+                               in: Preferences.trailDelayRange)
+                            .frame(width: 180)
+                            .focusable(false)
+                        Text(String(format: "%.1f s", Preferences.trailDelay))
+                            .font(.system(size: 12).monospacedDigit())
+                            .foregroundColor(.secondary)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                }
+                Row("Erasing speed", detail: "Long lines take longer to erase than short ones.") {
+                    menu(DrawingPage.trailSpeeds, model.binding({ Preferences.trailSpeed }, { Preferences.trailSpeed = $0 }))
+                }
+            }
         }
+    }
+
+    private func menu(_ choices: [(String, Double)], _ selection: Binding<Double>) -> some View {
+        Picker("", selection: selection) {
+            ForEach(choices, id: \.1) { choice in
+                Text(choice.0).tag(choice.1)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .fixedSize()
+        .focusable(false)
     }
 }
 

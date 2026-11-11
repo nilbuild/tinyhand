@@ -109,6 +109,23 @@ enum Preferences {
         set { set(newValue, "fadeSeconds") }
     }
 
+    /// The `fadeSeconds` value that makes lines trail the pen instead of fading as a whole.
+    static let trailFade: Double = -1
+
+    static let trailDelayRange: ClosedRange<Double> = 0.2...2
+
+    /// Seconds from the start of a line until the trail starts erasing it.
+    static var trailDelay: Double {
+        get { defaults.object(forKey: "trailDelay") as? Double ?? 0.6 }
+        set { set(newValue, "trailDelay") }
+    }
+
+    /// How fast the trail erases, in points per second.
+    static var trailSpeed: Double {
+        get { defaults.object(forKey: "trailSpeed") as? Double ?? 2000 }
+        set { set(newValue, "trailSpeed") }
+    }
+
     static var handSound: Bool {
         get { defaults.object(forKey: "sound.hands") as? Bool ?? true }
         set { set(newValue, "sound.hands") }
@@ -185,7 +202,7 @@ enum Preferences {
     }
 
     static func resetAll() {
-        for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
+        for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds", "trailDelay", "trailSpeed",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "showToolbar", "tapSound"] {
             defaults.removeObject(forKey: key)
