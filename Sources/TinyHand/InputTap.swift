@@ -5,7 +5,9 @@ final class InputTap {
     var onInteractDown: (() -> Void)?
     var onInteractUp: (() -> Void)?
     var onMouseUp: (() -> Void)?
-    var onLeftDragged: (() -> Void)?
+    var onDrawDragged: (() -> Void)?
+    /// Real-click mode: a left click that went through to the app underneath.
+    var onLeftClick: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
     var onScreenLocked: (() -> Void)?
     /// Left pressed while the right button is held: open the quick ring.
@@ -16,6 +18,13 @@ final class InputTap {
 
     private let lock = NSLock()
     private var _ringOpen = false
+    private var _realClicks = false
+
+    /// Real-click mode: the left button works as a normal mouse and the right button taps and draws.
+    var realClicks: Bool {
+        get { lock.withLock { _realClicks } }
+        set { lock.withLock { _realClicks = newValue } }
+    }
     private var _leftCaptured = false
 
     /// While the quick ring is open, clicks pick from it.
@@ -207,6 +216,18 @@ final class InputTap {
             break
         }
 
+        let real = realClicks
+        if real && (type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged) {
+            if type == .leftMouseDown {
+                if InputTap.screenLocked {
+                    DispatchQueue.main.async { [weak self] in self?.onScreenLocked?() }
+                } else {
+                    DispatchQueue.main.async { [weak self] in self?.onLeftClick?() }
+                }
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if InputTap.screenLocked {
@@ -227,8 +248,8 @@ final class InputTap {
             }
             return nil
         case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
-            if type == .leftMouseDragged {
-                DispatchQueue.main.async { [weak self] in self?.onLeftDragged?() }
+            if type == (real ? .rightMouseDragged : .leftMouseDragged) {
+                DispatchQueue.main.async { [weak self] in self?.onDrawDragged?() }
             }
             event.type = .mouseMoved
             return Unmanaged.passUnretained(event)

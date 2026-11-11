@@ -11,6 +11,8 @@ final class OverlayController {
     private let armView: ArmView
     private let inputTap = InputTap()
     private let tapSound = TapSound()
+    // Real-click ripples sit just under the pointer's overlay window.
+    private let splash = Splash(level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1))
     private var interactHeld = false
     private var menuHover = false
     private var guardCursorUntil = Date.distantPast
@@ -76,21 +78,39 @@ final class OverlayController {
             }
             self.armView.press()
             self.armView.held = true
-            self.tapSound.play()
+            if !self.inputTap.realClicks {
+                self.tapSound.play()   // real-click mode plays it on release instead, so drawing stays silent
+            }
             self.toolbar.hideHint()
             self.downPoint = self.localMouse()
             self.dragEvents = 0
             Log.write("press at \(self.downPoint.map { "\(Int($0.x)),\(Int($0.y))" } ?? "?")")
             self.noteButtonEvent()
         }
-        inputTap.onLeftDragged = { [weak self] in
+        inputTap.onDrawDragged = { [weak self] in
             self?.dragEvents += 1
             self?.drag()
             self?.wake()
         }
         inputTap.onMouseUp = { [weak self] in
-            self?.release()
+            self?.release(tapSound: true)
             self?.noteButtonEvent()
+        }
+        inputTap.onLeftClick = { [weak self] in
+            guard let self = self else {
+                return
+            }
+            if Preferences.rippleOn {
+                self.splash.splash(at: NSEvent.mouseLocation, look: self.rippleLook())
+            }
+            self.tapSound.play()
+            self.noteButtonEvent()
+        }
+        NotificationCenter.default.addObserver(forName: Splash.previewRequested, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else {
+                return
+            }
+            self.splash.splash(at: NSEvent.mouseLocation, look: self.rippleLook())
         }
         inputTap.onChord = { [weak self] in
             self?.openRing()
@@ -156,6 +176,7 @@ final class OverlayController {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
+            self?.inputTap.realClicks = Preferences.realClicks
             if let self = self, !Preferences.doubleShiftClickThrough, self.isClickThrough {
                 self.setClickThrough(false)
             }
@@ -347,7 +368,12 @@ final class OverlayController {
         deactivate()
     }
 
-    private func release() {
+    /// - Parameter playSound: in real-click mode, a right-click plays the tap sound when let go
+    ///   without a drag. Drawing stays silent.
+    private func release(tapSound playSound: Bool = false) {
+        if playSound, inputTap.realClicks, downPoint != nil, !armView.ink.isDrawing {
+            tapSound.play()
+        }
         if let start = downPoint {
             let moved = localMouse().map { Int(hypot($0.x - start.x, $0.y - start.y)) } ?? -1
             Log.write("release, drag events=\(dragEvents) moved=\(moved)pt stroke drawn=\(armView.ink.isDrawing)")
@@ -388,6 +414,13 @@ final class OverlayController {
         inputTap.ringOpen = true
         Log.write("quick ring open")
         wake()
+    }
+
+    private func rippleLook() -> Splash.Look {
+        Splash.Look(style: Preferences.rippleStyle,
+                    color: Preferences.rippleColor.color ?? armView.ink.color,
+                    diameter: Preferences.rippleSize.diameter,
+                    duration: Preferences.rippleSpeed.duration)
     }
 
     private func refreshRing() {
@@ -501,6 +534,7 @@ final class OverlayController {
             options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
         let installed = inputTap.install()
         inputTap.interactKey = Preferences.interactKey.cgFlags
+        inputTap.realClicks = Preferences.realClicks
         inputTap.clickThrough = false
         installShiftMonitors()
         inputTap.setActive(installed)
@@ -514,8 +548,10 @@ final class OverlayController {
         revealUntil = Date().addingTimeInterval(3)
         if installed && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
             UserDefaults.standard.set(true, forKey: OverlayController.hintShownKey)
-            var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw"),
-                                                        ("Hold right + click left", "for the quick ring")]
+            var parts: [(key: String, text: String)] = Preferences.realClicks
+                ? [("Right-click", "to tap"), ("Right-drag", "to draw")]
+                : [("Click", "to tap"), ("Drag", "to draw")]
+            parts.append(("Hold right + click left", "for the quick ring"))
             if Preferences.interactKey != .off {
                 parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
             }
@@ -814,7 +850,8 @@ final class OverlayController {
 
         updateZones(mouse: mouse, screen: screen)
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
-        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld && !inputTap.clickThrough
+        // In real-click mode left clicks must reach the Dock, so never catch the mouse there.
+        let catchMouse = !inputTap.realClicks && overDock && inputTap.isInstalled && !normalCursor && !interactHeld && !inputTap.clickThrough
         if window.ignoresMouseEvents == catchMouse {
             window.ignoresMouseEvents = !catchMouse
         }
@@ -834,12 +871,14 @@ final class OverlayController {
             updatePace(busy: busy)
             return
         }
-        let down = CGEventSource.buttonState(.hidSystemState, button: .left)
+        let down = inputTap.realClicks
+            ? CGEventSource.buttonState(.hidSystemState, button: .right) || CGEventSource.buttonState(.hidSystemState, button: .center)
+            : CGEventSource.buttonState(.hidSystemState, button: .left)
         if down {
             buttonSeenDown = true
         }
         if buttonSeenDown && !down {
-            release()
+            release(tapSound: true)
             return
         }
         drag()

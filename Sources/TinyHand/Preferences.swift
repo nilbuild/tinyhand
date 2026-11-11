@@ -115,6 +115,74 @@ enum InkTone: String, CaseIterable {
     }
 }
 
+/// Left-click ripple look.
+enum RippleStyle: String, CaseIterable {
+    case glass, glow, line
+
+    var title: String {
+        switch self {
+        case .glass: return "Glass"
+        case .glow: return "Glow"
+        case .line: return "Line"
+        }
+    }
+}
+
+enum RippleColor: String, CaseIterable {
+    case blue, teal, purple, gold, white, ink
+
+    var title: String {
+        switch self {
+        case .blue: return "Blue"
+        case .teal: return "Teal"
+        case .purple: return "Purple"
+        case .gold: return "Gold"
+        case .white: return "White"
+        case .ink: return "Ink"
+        }
+    }
+
+    /// nil means "use the current ink colour".
+    var color: CGColor? {
+        switch self {
+        case .blue: return CGColor(srgbRed: 0.45, green: 0.68, blue: 1.00, alpha: 1)
+        case .teal: return CGColor(srgbRed: 0.22, green: 0.80, blue: 0.78, alpha: 1)
+        case .purple: return CGColor(srgbRed: 0.62, green: 0.46, blue: 1.00, alpha: 1)
+        case .gold: return CGColor(srgbRed: 1.00, green: 0.78, blue: 0.32, alpha: 1)
+        case .white: return CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
+        case .ink: return nil
+        }
+    }
+}
+
+enum RippleSize: String, CaseIterable {
+    case small, medium, large
+
+    var title: String { rawValue.capitalized }
+
+    var diameter: CGFloat {
+        switch self {
+        case .small: return 100
+        case .medium: return 140
+        case .large: return 200
+        }
+    }
+}
+
+enum RippleSpeed: String, CaseIterable {
+    case quick, normal, slow
+
+    var title: String { rawValue.capitalized }
+
+    var duration: TimeInterval {
+        switch self {
+        case .quick: return 0.4
+        case .normal: return 0.55
+        case .slow: return 0.85
+        }
+    }
+}
+
 enum PenSize: String, CaseIterable {
     case thin, medium, thick
 
@@ -174,6 +242,38 @@ enum Preferences {
     static var penSize: PenSize {
         get { defaults.string(forKey: "penSize").flatMap(PenSize.init(rawValue:)) ?? .medium }
         set { set(newValue.rawValue, "penSize") }
+    }
+
+    /// Off (default): every click is a tap that reaches nothing, as before.
+    /// On: the left button clicks for real (with a ripple), the right button taps and draws.
+    static var realClicks: Bool {
+        get { defaults.object(forKey: "realClicks") as? Bool ?? false }
+        set { set(newValue, "realClicks") }
+    }
+
+    static var rippleOn: Bool {
+        get { defaults.object(forKey: "ripple.on") as? Bool ?? true }
+        set { set(newValue, "ripple.on") }
+    }
+
+    static var rippleStyle: RippleStyle {
+        get { defaults.string(forKey: "ripple.style").flatMap(RippleStyle.init(rawValue:)) ?? .glass }
+        set { set(newValue.rawValue, "ripple.style") }
+    }
+
+    static var rippleColor: RippleColor {
+        get { defaults.string(forKey: "ripple.color").flatMap(RippleColor.init(rawValue:)) ?? .blue }
+        set { set(newValue.rawValue, "ripple.color") }
+    }
+
+    static var rippleSize: RippleSize {
+        get { defaults.string(forKey: "ripple.size").flatMap(RippleSize.init(rawValue:)) ?? .medium }
+        set { set(newValue.rawValue, "ripple.size") }
+    }
+
+    static var rippleSpeed: RippleSpeed {
+        get { defaults.string(forKey: "ripple.speed").flatMap(RippleSpeed.init(rawValue:)) ?? .normal }
+        set { set(newValue.rawValue, "ripple.speed") }
     }
 
     static var handSound: Bool {
@@ -254,7 +354,8 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "showToolbar", "tapSound", "inkTone", "penSize"] {
+                    "inkChoice", "showInkButton", "showToolbar", "tapSound", "inkTone", "penSize",
+                    "realClicks", "ripple.on", "ripple.style", "ripple.color", "ripple.size", "ripple.speed"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

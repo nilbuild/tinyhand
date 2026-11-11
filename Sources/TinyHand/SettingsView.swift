@@ -424,6 +424,12 @@ private struct GeneralPage: View {
                 Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
             Card(title: "Clicking for real") {
+                Row("Left button clicks for real", detail: "Left clicks reach the app, with a ripple. Right-click taps, right-drag draws.") {
+                    Toggle("", isOn: model.binding({ Preferences.realClicks }, { Preferences.realClicks = $0 }))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .focusable(false)
+                }
                 Row("Hold to use the app", detail: "Clicks, drags and scrolls reach the app.") {
                     Picker("", selection: model.binding({ Preferences.interactKey }, { Preferences.interactKey = $0 })) {
                         ForEach(InteractKey.allCases, id: \.self) { key in
@@ -981,6 +987,15 @@ private struct DrawingPage: View {
     ]
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            inkCard
+            if Preferences.realClicks {
+                RippleCard(model: model)
+            }
+        }
+    }
+
+    private var inkCard: some View {
         Card(title: "Ink") {
             Row("Ink colour", detail: Preferences.inkChoice == .match ? "Matches each pointer." : "All pointers draw in \(Preferences.inkChoice.title.lowercased()).") {
                 HStack(spacing: 8) {
@@ -1026,6 +1041,59 @@ private struct DrawingPage: View {
                 .focusable(false)
             }
         }
+    }
+}
+
+private struct RippleCard: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Card(title: "Click ripple") {
+            Row("Ripple on left-click", detail: "A ring spreads out where you click, in real-click mode.") {
+                Toggle("", isOn: model.binding({ Preferences.rippleOn }, { Preferences.rippleOn = $0 }))
+                    .toggleStyle(.switch).labelsHidden().focusable(false)
+            }
+            if Preferences.rippleOn {
+                Row("Style", detail: "Glass blurs what's underneath. Glow is a soft bloom. Line is a thin ring.") {
+                    segmented({ Preferences.rippleStyle }, { Preferences.rippleStyle = $0 }, RippleStyle.allCases) { $0.title }
+                }
+                Row("Colour", detail: Preferences.rippleColor == .ink ? "Follows your ink colour." : nil) {
+                    Picker("", selection: model.binding({ Preferences.rippleColor }, { Preferences.rippleColor = $0 })) {
+                        ForEach(RippleColor.allCases, id: \.self) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                Row("Size") {
+                    segmented({ Preferences.rippleSize }, { Preferences.rippleSize = $0 }, RippleSize.allCases) { $0.title }
+                }
+                Row("Speed") {
+                    segmented({ Preferences.rippleSpeed }, { Preferences.rippleSpeed = $0 }, RippleSpeed.allCases) { $0.title }
+                }
+                Row("Try it", detail: "Shows the ripple right here, without turning the pointer on.") {
+                    PrimaryButton(title: "Preview", symbol: "drop", primary: false) {
+                        NotificationCenter.default.post(name: Splash.previewRequested, object: nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private func segmented<T: Hashable>(_ get: @escaping () -> T, _ set: @escaping (T) -> Void, _ options: [T],
+                                        _ title: @escaping (T) -> String) -> some View {
+        Picker("", selection: model.binding(get, set)) {
+            ForEach(options, id: \.self) { option in
+                Text(title(option)).tag(option)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .focusable(false)
     }
 }
 
