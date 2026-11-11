@@ -379,6 +379,11 @@ final class Toolbar {
         panel.setFrameOrigin(CGPoint(x: screen.frame.midX - f.width / 2, y: screen.visibleFrame.minY + 14))
     }
 
+    func rejoinAllSpaces() {
+        panel.rejoinAllSpaces()
+        tray.rejoinAllSpaces()
+    }
+
     func show() {
         panel.orderFrontRegardless()
         panel.invalidateShadow()

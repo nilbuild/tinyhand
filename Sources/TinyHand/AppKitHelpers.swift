@@ -1,5 +1,19 @@
 import AppKit
 
+extension NSWindow {
+    /// When a full-screen Space closes, macOS keeps a hidden window that can join all
+    /// Spaces only on the current Space, and showing it again does not undo that.
+    /// Removing the behavior, committing it, and adding it back restores every Space.
+    func rejoinAllSpaces() {
+        guard collectionBehavior.contains(.canJoinAllSpaces) else {
+            return
+        }
+        collectionBehavior.remove(.canJoinAllSpaces)
+        CATransaction.flush()
+        collectionBehavior.insert(.canJoinAllSpaces)
+    }
+}
+
 extension NSView {
     func removeFocusRings() {
         focusRingType = .none

@@ -413,6 +413,8 @@ final class OverlayController {
         tapSound.warm()
 
         CursorHider.hide()
+        window.rejoinAllSpaces()
+        toolbar.rejoinAllSpaces()
         tick()
         window.orderFrontRegardless()
 
