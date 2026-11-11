@@ -8,8 +8,21 @@ final class InputTap {
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
     var onScreenLocked: (() -> Void)?
+    /// Left pressed while the right button is held: open the quick ring.
+    var onChord: (() -> Void)?
+    /// Left pressed while the ring is open.
+    var onRingClick: (() -> Void)?
+    var onRightUp: (() -> Void)?
 
     private let lock = NSLock()
+    private var _ringOpen = false
+    private var _leftCaptured = false
+
+    /// While the quick ring is open, clicks pick from it.
+    var ringOpen: Bool {
+        get { lock.withLock { _ringOpen } }
+        set { lock.withLock { _ringOpen = newValue } }
+    }
     private var _active = false
     private var _passThroughRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
@@ -105,6 +118,7 @@ final class InputTap {
         lock.withLock {
             _active = value
             _interactPress = false
+            _leftCaptured = false
         }
         guard let tap = tap else {
             return
@@ -184,6 +198,15 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         }
 
+        switch handleRing(type: type, event: event) {
+        case .swallow:
+            return nil
+        case .pass:
+            return Unmanaged.passUnretained(event)
+        case .notRing:
+            break
+        }
+
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if InputTap.screenLocked {
@@ -196,7 +219,12 @@ final class InputTap {
             if InputTap.screenLocked {
                 return Unmanaged.passUnretained(event)
             }
-            DispatchQueue.main.async { [weak self] in self?.onMouseUp?() }
+            DispatchQueue.main.async { [weak self] in
+                self?.onMouseUp?()
+                if type == .rightMouseUp {
+                    self?.onRightUp?()
+                }
+            }
             return nil
         case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             if type == .leftMouseDragged {
@@ -206,6 +234,49 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         default:
             return Unmanaged.passUnretained(event)
+        }
+    }
+
+    private enum RingResult {
+        case notRing, swallow, pass
+    }
+
+    /// The quick ring: holding right and pressing left opens it; while it's open, left presses
+    /// pick from it and right presses don't tap.
+    private func handleRing(type: CGEventType, event: CGEvent) -> RingResult {
+        switch type {
+        case .leftMouseDown:
+            if InputTap.screenLocked {
+                return .notRing
+            }
+            if ringOpen {
+                lock.withLock { _leftCaptured = true }
+                DispatchQueue.main.async { [weak self] in self?.onRingClick?() }
+                return .swallow
+            }
+            if CGEventSource.buttonState(.hidSystemState, button: .right) {
+                lock.withLock { _leftCaptured = true }
+                DispatchQueue.main.async { [weak self] in self?.onChord?() }
+                return .swallow
+            }
+            return .notRing
+        case .leftMouseUp:
+            let captured = lock.withLock { () -> Bool in
+                let was = _leftCaptured
+                _leftCaptured = false
+                return was
+            }
+            return captured ? .swallow : .notRing
+        case .leftMouseDragged:
+            if lock.withLock({ _leftCaptured }) {
+                event.type = .mouseMoved
+                return .pass
+            }
+            return .notRing
+        case .rightMouseDown:
+            return ringOpen ? .swallow : .notRing
+        default:
+            return .notRing
         }
     }
 

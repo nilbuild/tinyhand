@@ -92,6 +92,25 @@ final class OverlayController {
             self?.release()
             self?.noteButtonEvent()
         }
+        inputTap.onChord = { [weak self] in
+            self?.openRing()
+        }
+        inputTap.onRingClick = { [weak self] in
+            self?.ringPick(closeIfOutside: true)
+        }
+        // Letting go of the right button over a colour, pointer or pen size picks it, but only after
+        // moving toward one, so a quick hold-right-click-left doesn't pick whatever is under the pointer.
+        inputTap.onRightUp = { [weak self] in
+            guard let self = self, self.armView.ring.isOpen, let p = self.localMouse() else {
+                return
+            }
+            let start = self.armView.ring.openedAt
+            guard hypot(p.x - start.x, p.y - start.y) > 12,
+                  let target = self.armView.ring.target(at: p), target != .timing else {
+                return
+            }
+            self.ringPick(closeIfOutside: false)
+        }
         inputTap.onInteractDown = { [weak self] in
             self?.armView.press()
             self?.armView.held = true
@@ -357,6 +376,65 @@ final class OverlayController {
         "held=\(armView.held) downPoint=\(downPoint != nil) drawing=\(armView.ink.isDrawing) strokes=\(inkStrokes)"
     }
 
+    // MARK: Quick ring (hold right, click left)
+
+    private func openRing() {
+        guard isActive, let p = localMouse() else {
+            return
+        }
+        release()
+        armView.ring.open(at: p, in: armView.bounds, selected: Preferences.inkChoice,
+                          fade: Preferences.fadeSeconds, pointer: armView.style, pen: Preferences.penSize)
+        inputTap.ringOpen = true
+        Log.write("quick ring open")
+        wake()
+    }
+
+    private func refreshRing() {
+        armView.ring.update(selected: Preferences.inkChoice, fade: Preferences.fadeSeconds,
+                            pointer: armView.style, pen: Preferences.penSize)
+    }
+
+    private func closeRing() {
+        armView.ring.close()
+        inputTap.ringOpen = false
+    }
+
+    private func ringPick(closeIfOutside: Bool) {
+        guard armView.ring.isOpen, let p = localMouse() else {
+            return
+        }
+        switch armView.ring.target(at: p) {
+        case .color(let choice)?:
+            Preferences.inkChoice = choice
+            closeRing()
+        case .pointer(let style)?:
+            pick(style)
+            closeRing()
+        case .size(let size)?:
+            // Stays open, so a colour can be picked next.
+            Preferences.penSize = size
+            refreshRing()
+        case .timing?:
+            cycleFade()
+            refreshRing()
+        case nil:
+            if closeIfOutside {
+                closeRing()
+            }
+        }
+    }
+
+    /// Stay → 1 s → 3 s → 6 s → Stay. Leaving Stay fades everything already on screen.
+    private func cycleFade() {
+        let current = Preferences.fadeSeconds
+        let next = InkRing.nextFade(after: current)
+        Preferences.fadeSeconds = next
+        if current <= 0 && next > 0 {
+            armView.ink.fadeAll()
+        }
+    }
+
     func clearInk() {
         armView.ink.clear()
     }
@@ -436,7 +514,8 @@ final class OverlayController {
         revealUntil = Date().addingTimeInterval(3)
         if installed && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
             UserDefaults.standard.set(true, forKey: OverlayController.hintShownKey)
-            var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw")]
+            var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw"),
+                                                        ("Hold right + click left", "for the quick ring")]
             if Preferences.interactKey != .off {
                 parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
             }
@@ -475,6 +554,7 @@ final class OverlayController {
         armView.held = false
         downPoint = nil
         armView.ink.clear()
+        closeRing()
         window.ignoresMouseEvents = true
         window.orderOut(nil)
         toolbar.hide()
@@ -539,7 +619,14 @@ final class OverlayController {
     private func setEscEnabled(_ enabled: Bool) {
         if enabled && isActive && escHotKey == nil {
             escHotKey = HotKeyCenter.shared.register(keyCode: UInt32(kVK_Escape), modifiers: 0) { [weak self] in
-                self?.exit()
+                guard let self = self else {
+                    return
+                }
+                if self.armView.ring.isOpen {
+                    self.closeRing()
+                    return
+                }
+                self.exit()
             }
         }
         if !enabled, let id = escHotKey {
@@ -667,7 +754,7 @@ final class OverlayController {
             return
         }
         let still = Date().timeIntervalSince(stillSince) > OverlayController.idleAfter
-        guard still, !busy, !armView.held, !armView.isSettling, !armView.ink.isDrawing else {
+        guard still, !busy, !armView.held, !armView.isSettling, !armView.ink.isDrawing, !armView.ring.isOpen else {
             return
         }
         installIdleMonitors()
@@ -714,6 +801,7 @@ final class OverlayController {
                 revealUntil = Date().addingTimeInterval(1.5)
             }
             armView.ink.clear()
+            closeRing()
             window.setFrame(screen.frame, display: false)
             armView.frame = NSRect(origin: .zero, size: screen.frame.size)
             toolbar.place(on: screen)
@@ -738,6 +826,9 @@ final class OverlayController {
 
         let local = CGPoint(x: mouse.x - screen.frame.origin.x, y: mouse.y - screen.frame.origin.y)
         armView.aim(cursor: local)
+        if armView.ring.isOpen {
+            armView.ring.hover(local)
+        }
         guard downPoint != nil else {
             let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling
             updatePace(busy: busy)

@@ -59,7 +59,12 @@ enum InkChoice: String, CaseIterable {
         }
     }
 
+    /// The colour with the Ink tone setting applied.
     var color: CGColor? {
+        baseColor.map(Preferences.inkTone.apply)
+    }
+
+    private var baseColor: CGColor? {
         switch self {
         case .match: return nil
         case .red: return Ink.red
@@ -74,7 +79,59 @@ enum InkChoice: String, CaseIterable {
     }
 
     func resolved(for style: PointerStyle) -> CGColor {
-        color ?? style.inkColor
+        color ?? Preferences.inkTone.apply(style.inkColor)
+    }
+}
+
+/// Shifts every ink colour together: softer, greyer or darker.
+enum InkTone: String, CaseIterable {
+    case vivid, pastel, muted, deep
+
+    var title: String {
+        switch self {
+        case .vivid: return "Vivid"
+        case .pastel: return "Pastel"
+        case .muted: return "Muted"
+        case .deep: return "Deep"
+        }
+    }
+
+    func apply(_ color: CGColor) -> CGColor {
+        guard self != .vivid, let ns = NSColor(cgColor: color)?.usingColorSpace(.sRGB) else {
+            return color
+        }
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ns.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        if s < 0.08 {
+            return color   // leave white and black alone
+        }
+        switch self {
+        case .vivid: break
+        case .pastel: s *= 0.45; b = min(1, b * 0.25 + 0.78)
+        case .muted: s *= 0.55; b *= 0.82
+        case .deep: s = min(1, s * 1.05); b *= 0.62
+        }
+        return NSColor(hue: h, saturation: s, brightness: b, alpha: a).cgColor
+    }
+}
+
+enum PenSize: String, CaseIterable {
+    case thin, medium, thick
+
+    var title: String {
+        switch self {
+        case .thin: return "Thin"
+        case .medium: return "Medium"
+        case .thick: return "Thick"
+        }
+    }
+
+    var scale: CGFloat {
+        switch self {
+        case .thin: return 0.55
+        case .medium: return 1
+        case .thick: return 1.9
+        }
     }
 }
 
@@ -107,6 +164,16 @@ enum Preferences {
     static var fadeSeconds: Double {
         get { defaults.object(forKey: "fadeSeconds") as? Double ?? 3 }
         set { set(newValue, "fadeSeconds") }
+    }
+
+    static var inkTone: InkTone {
+        get { defaults.string(forKey: "inkTone").flatMap(InkTone.init(rawValue:)) ?? .vivid }
+        set { set(newValue.rawValue, "inkTone") }
+    }
+
+    static var penSize: PenSize {
+        get { defaults.string(forKey: "penSize").flatMap(PenSize.init(rawValue:)) ?? .medium }
+        set { set(newValue.rawValue, "penSize") }
     }
 
     static var handSound: Bool {
@@ -187,7 +254,7 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "showToolbar", "tapSound"] {
+                    "inkChoice", "showInkButton", "showToolbar", "tapSound", "inkTone", "penSize"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)
