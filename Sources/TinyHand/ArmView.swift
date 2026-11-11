@@ -19,6 +19,7 @@ final class ArmView: NSView {
     private let liftFrac: CGFloat = 0.06
 
     let ink = Ink()
+    let ring = InkRing()
     var held = false
     var inkWidth: CGFloat { max(2, max(3, bounds.height * 0.0055) * Preferences.penSize.scale) }
 
@@ -56,6 +57,7 @@ final class ArmView: NSView {
         layer = root
         wantsLayer = true
         root.addSublayer(ink.layer)
+        root.addSublayer(ring.layer)
         root.addSublayer(group)
 
         root.addSublayer(dotLayer)

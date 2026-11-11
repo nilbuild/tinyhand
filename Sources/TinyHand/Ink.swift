@@ -75,6 +75,13 @@ final class Ink {
         fade(s, after: fadeDelay, over: fadeDuration)
     }
 
+    /// Fades out every finished drawing on screen that isn't already fading.
+    func fadeAll() {
+        for case let s as CAShapeLayer in layer.sublayers ?? [] where s !== stroke && s.animation(forKey: "fade") == nil {
+            fade(s, after: 0, over: fadeDuration)
+        }
+    }
+
     func clear() {
         stroke = nil
         points = []
