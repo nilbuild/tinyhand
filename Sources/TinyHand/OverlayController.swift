@@ -33,6 +33,9 @@ final class OverlayController {
     private static let busyInterval: TimeInterval = 1.0 / 120.0
     private static let idleInterval: TimeInterval = 1.0 / 20.0
     private static let idleAfter: TimeInterval = 0.5
+    /// After this long without the mouse moving, stop the timer altogether. The idle monitors
+    /// wake it the moment the mouse moves, a button is pressed or a modifier changes.
+    private static let sleepAfter: TimeInterval = 3
     private static let menuScanFast: TimeInterval = 0.05
     private static let menuScanSlow: TimeInterval = 0.25
     private var timerInterval: TimeInterval = 0
@@ -639,6 +642,9 @@ final class OverlayController {
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        if interval == OverlayController.idleInterval {
+            t.tolerance = interval * 0.5   // let macOS batch idle wakeups
+        }
         RunLoop.main.add(t, forMode: .common)
         timer = t
         timerInterval = interval
@@ -663,6 +669,13 @@ final class OverlayController {
         if timerInterval == OverlayController.idleInterval {
             if busy {
                 wake()
+                return
+            }
+            let asleep = Date().timeIntervalSince(stillSince) > OverlayController.sleepAfter
+            if asleep && !toolbar.revealed && downPoint == nil && !armView.isSettling {
+                timer?.invalidate()
+                timer = nil
+                timerInterval = 0
             }
             return
         }
@@ -739,7 +752,10 @@ final class OverlayController {
         let local = CGPoint(x: mouse.x - screen.frame.origin.x, y: mouse.y - screen.frame.origin.y)
         armView.aim(cursor: local)
         guard downPoint != nil else {
-            let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling
+            // Resting over the Dock kept the full-speed timer running for as long as the mouse sat
+            // there. Give up after a few still seconds; moving again wakes everything.
+            let lingering = Date().timeIntervalSince(stillSince) > OverlayController.sleepAfter
+            let busy = (!lingering && (overDock || (!normalCursor && urgent))) || CursorHider.isSettling
             updatePace(busy: busy)
             return
         }
