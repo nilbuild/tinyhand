@@ -973,6 +973,7 @@ private struct AppearancePage: View {
 private struct DrawingPage: View {
     @ObservedObject var model: SettingsModel
     private static let choices: [(String, Double)] = [
+        ("After 1 second", 1),
         ("After 3 seconds", 3),
         ("After 6 seconds", 6),
         ("After 10 seconds", 10),
@@ -990,6 +991,28 @@ private struct DrawingPage: View {
                         }
                     }
                 }
+            }
+            Row("Ink tone", detail: "Shifts every colour together: Pastel is softer, Muted is greyer, Deep is darker.") {
+                Picker("", selection: model.binding({ Preferences.inkTone }, { Preferences.inkTone = $0 })) {
+                    ForEach(InkTone.allCases, id: \.self) { tone in
+                        Text(tone.title).tag(tone)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .focusable(false)
+            }
+            Row("Pen size") {
+                Picker("", selection: model.binding({ Preferences.penSize }, { Preferences.penSize = $0 })) {
+                    ForEach(PenSize.allCases, id: \.self) { size in
+                        Text(size.title).tag(size)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .focusable(false)
             }
             Row("Lines fade", detail: "Clear them any time with \(Preferences.clearShortcut.display).") {
                 Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
