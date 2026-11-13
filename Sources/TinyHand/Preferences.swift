@@ -154,6 +154,11 @@ enum Preferences {
         set { set(newValue, "showInkButton") }
     }
 
+    static var snapShapes: Bool {
+        get { defaults.object(forKey: "snapShapes") as? Bool ?? true }
+        set { set(newValue, "snapShapes") }
+    }
+
     static let maxPinned = 8
 
     static var pinnedStyles: [PointerStyle] {
@@ -187,7 +192,7 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "showToolbar", "tapSound"] {
+                    "inkChoice", "showInkButton", "showToolbar", "tapSound", "snapShapes"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

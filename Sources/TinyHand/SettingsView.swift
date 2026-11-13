@@ -1002,6 +1002,10 @@ private struct DrawingPage: View {
                 .fixedSize()
                 .focusable(false)
             }
+            Row("Snap shapes", detail: "Rough lines, arrows, circles, boxes, triangles, stars and hearts turn into clean shapes.") {
+                Toggle("", isOn: model.binding({ Preferences.snapShapes }, { Preferences.snapShapes = $0 }))
+                    .toggleStyle(.switch).labelsHidden().focusable(false)
+            }
         }
     }
 }
