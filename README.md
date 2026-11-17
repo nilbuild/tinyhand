@@ -49,6 +49,7 @@ open -g tinyhand://toggle
 | `tinyhand://clear` | Clear the drawing |
 | `tinyhand://style/<id>` | Switch to a hand (or `laser`) and turn the pointer on |
 | `tinyhand://sound/on`, `/off`, `/toggle` | Tap sound for the current pointer |
+| `tinyhand://settings` | Open Settings |
 
 While TinyHand runs, it keeps its current state in
 `~/Library/Application Support/TinyHand/state.json`: whether the pointer is on, the

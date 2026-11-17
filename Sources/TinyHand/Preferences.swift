@@ -149,6 +149,12 @@ enum Preferences {
         set { set(newValue, "showToolbar") }
     }
 
+    /// Whether the TinyHand icon is in the menu bar. When it is hidden, opening the app again shows Settings.
+    static var showMenuBarIcon: Bool {
+        get { defaults.object(forKey: "showMenuBarIcon") as? Bool ?? true }
+        set { set(newValue, "showMenuBarIcon") }
+    }
+
     static var showInkButton: Bool {
         get { defaults.object(forKey: "showInkButton") as? Bool ?? true }
         set { set(newValue, "showInkButton") }
@@ -187,7 +193,7 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "showToolbar", "tapSound"] {
+                    "inkChoice", "showInkButton", "showToolbar", "showMenuBarIcon", "tapSound"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

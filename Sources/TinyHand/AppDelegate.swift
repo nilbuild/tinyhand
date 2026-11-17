@@ -15,7 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var soundItem: NSMenuItem?
     private var toggleHotKey: UInt32?
     private var clearHotKey: UInt32?
-    private lazy var automation = Automation(overlay: overlay)
+    private lazy var automation = Automation(overlay: overlay) { [weak self] in
+        self?.openSettings()
+    }
     private var launched = false
     private var pendingURLs: [URL] = []
 
@@ -41,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.automation.writeState()
         }
         overlay.extraPassThrough = { [weak self] in
-            guard let frame = self?.statusItem.button?.window?.frame else {
+            guard self?.statusItem.isVisible == true, let frame = self?.statusItem.button?.window?.frame else {
                 return []
             }
             return [frame]
@@ -66,6 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         launched = true
         pendingURLs.forEach(automation.handle)
         pendingURLs = []
+    }
+
+    // Opening TinyHand while it is running shows Settings, which is the way back when the menu bar icon is hidden.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -101,6 +109,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: "Quit TinyHand", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         menu.delegate = self
+
+        statusItem.isVisible = Preferences.showMenuBarIcon
+        NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
+            guard let item = self?.statusItem, item.isVisible != Preferences.showMenuBarIcon else {
+                return
+            }
+            item.isVisible = Preferences.showMenuBarIcon
+        }
     }
 
     private func setupSettings() {
@@ -210,7 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.soundOn.toggle()
     }
 
-    @objc private func openSettings() {
+    @objc func openSettings() {
         overlay.exit()
         settings.show()
     }

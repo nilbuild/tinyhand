@@ -7,9 +7,11 @@ final class Automation {
         .appendingPathComponent("Library/Application Support/TinyHand/state.json")
 
     private let overlay: OverlayController
+    private let openSettings: () -> Void
 
-    init(overlay: OverlayController) {
+    init(overlay: OverlayController, openSettings: @escaping () -> Void) {
         self.overlay = overlay
+        self.openSettings = openSettings
         NotificationCenter.default.addObserver(forName: CustomHands.changed, object: nil, queue: .main) { [weak self] _ in
             self?.writeState()
         }
@@ -35,6 +37,8 @@ final class Automation {
             selectStyle(argument)
         case "sound":
             setSound(argument)
+        case "settings":
+            openSettings()
         default:
             Log.write("unknown url command: \(command)")
         }

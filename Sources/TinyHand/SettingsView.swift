@@ -454,6 +454,12 @@ private struct GeneralPage: View {
                         .focusable(false)
                 }
             }
+            Card(title: "Menu bar") {
+                Row("Show TinyHand in the menu bar", detail: "When it's hidden, open TinyHand again from Spotlight, Raycast or Finder to get to Settings.") {
+                    Toggle("", isOn: model.binding({ Preferences.showMenuBarIcon }, { Preferences.showMenuBarIcon = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+            }
             Card(title: "Startup") {
                 Row("Open TinyHand when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
