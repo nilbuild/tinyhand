@@ -2,7 +2,14 @@ import AppKit
 
 final class Ink {
     let layer = CALayer()
-    var keep: Bool { Preferences.fadeSeconds <= 0 }
+    var keep: Bool { Preferences.fadeSeconds == 0 }
+
+    // With the trail setting, nothing is erased while you hold the button. When you let go, an
+    // eraser waits `trailDelay`, then follows the line from its start at a steady speed, so long
+    // lines take longer to go than short ones.
+    private var trailing: Bool { Preferences.fadeSeconds < 0 }
+    private var trailDelay: CFTimeInterval { Preferences.trailDelay }
+    private var eraseSpeed: CGFloat { CGFloat(Preferences.trailSpeed) }
 
     static let purple = CGColor(srgbRed: 0.53, green: 0.33, blue: 0.95, alpha: 1)
     static let red = CGColor(srgbRed: 1.0, green: 0.16, blue: 0.12, alpha: 1)
@@ -66,8 +73,13 @@ final class Ink {
             return
         }
         stroke = nil
+        let length = lineLength() + headLength(s)
         points = []
         arrow = false
+        if trailing {
+            erase(s, length: length)
+            return
+        }
         freeze(s)
         if keep {
             return
@@ -79,6 +91,35 @@ final class Ink {
         stroke = nil
         points = []
         layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+    }
+
+    private func lineLength() -> CGFloat {
+        zip(points, points.dropFirst()).reduce(0) { $0 + hypot($1.1.x - $1.0.x, $1.1.y - $1.0.y) }
+    }
+
+    // Erases the finished line from its start, `trailDelay` after release, at a steady speed.
+    private func erase(_ s: CAShapeLayer, length: CGFloat) {
+        let duration = max(0.05, CFTimeInterval(length / eraseSpeed))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        s.strokeStart = 1
+        CATransaction.commit()
+        let anim = CABasicAnimation(keyPath: "strokeStart")
+        anim.fromValue = 0
+        anim.toValue = 1
+        anim.beginTime = CACurrentMediaTime() + trailDelay
+        anim.duration = duration
+        anim.timingFunction = CAMediaTimingFunction(name: .linear)
+        anim.fillMode = .backwards
+        s.add(anim, forKey: "trail")
+        DispatchQueue.main.asyncAfter(deadline: .now() + trailDelay + duration) { [weak s] in
+            s?.removeFromSuperlayer()
+        }
+    }
+
+    // The arrowhead's two strokes are drawn after the line, so the eraser reaches them last.
+    private func headLength(_ s: CAShapeLayer) -> CGFloat {
+        arrow ? 2 * max(14, s.lineWidth * 3.2) : 0
     }
 
     private func freeze(_ s: CAShapeLayer) {
