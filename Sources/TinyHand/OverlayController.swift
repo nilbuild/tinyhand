@@ -550,7 +550,8 @@ final class OverlayController {
 
     private static func menuBarRect(_ screen: NSScreen) -> CGRect {
         let height = max(24, screen.frame.maxY - screen.visibleFrame.maxY)
-        return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
+        // One point taller than the bar, so the top row of pixels (y == maxY) counts as inside it too.
+        return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height + 1)
     }
 
     private static func openMenus() -> [CGRect] {
