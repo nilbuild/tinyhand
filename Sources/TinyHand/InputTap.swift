@@ -30,7 +30,8 @@ final class InputTap {
         set { lock.withLock { _interactKey = newValue } }
     }
 
-    /// Latched by double-tapping Shift: every click reaches the app, as if the interact key were held.
+    /// Latched by double-tapping Shift, or on from the start in pointer mode: clicks reach the app.
+    /// Holding the interact key flips it, so a held key then makes taps and draws.
     var clickThrough: Bool {
         get { lock.withLock { _clickThrough } }
         set { lock.withLock { _clickThrough = newValue } }
@@ -151,7 +152,7 @@ final class InputTap {
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             let viaKey = !key.isEmpty && (event.flags.contains(key) || CGEventSource.flagsState(.hidSystemState).contains(key))
-            if viaKey || clickThrough {
+            if viaKey != clickThrough {
                 lock.withLock { _interactPress = true }
                 DispatchQueue.main.async { [weak self] in self?.onInteractDown?() }
             }
@@ -210,7 +211,7 @@ final class InputTap {
     }
 
     // Backstop for lock paths that don't post com.apple.screenIsLocked.
-    private static var screenLocked: Bool {
+    static var screenLocked: Bool {
         guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else {
             return false
         }

@@ -423,8 +423,21 @@ private struct GeneralPage: View {
             if let error = model.shortcutError {
                 Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
-            Card(title: "Clicking for real") {
-                Row("Hold to use the app", detail: "Clicks, drags and scrolls reach the app.") {
+            Card(title: "Clicks") {
+                Row("When the pointer is on", detail: Preferences.pointerMode
+                    ? "The hand is your cursor, over menus too, and clicks work as usual. It comes back after sleep, a lock or Settings, and Esc doesn't turn it off."
+                    : "Clicks tap and dragging draws. Nothing underneath gets clicked.") {
+                    Picker("", selection: model.binding({ Preferences.pointerMode }, { Preferences.pointerMode = $0 })) {
+                        Text("Tap and draw").tag(false)
+                        Text("Work as usual").tag(true)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                Row(Preferences.pointerMode ? "Hold to tap and draw" : "Hold to use the app",
+                    detail: Preferences.pointerMode ? "Clicks tap and dragging draws while you hold it." : "Clicks, drags and scrolls reach the app.") {
                     Picker("", selection: model.binding({ Preferences.interactKey }, { Preferences.interactKey = $0 })) {
                         ForEach(InteractKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
@@ -435,7 +448,7 @@ private struct GeneralPage: View {
                     .fixedSize()
                     .focusable(false)
                 }
-                if Preferences.interactKey != .off {
+                if Preferences.interactKey != .off && !Preferences.pointerMode {
                     Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays, in menus too." : "The normal cursor comes back, in menus too.") {
                         Picker("", selection: model.binding({ Preferences.interactKeepsHand }, { Preferences.interactKeepsHand = $0 })) {
                             Text("Show the cursor").tag(false)
@@ -447,7 +460,10 @@ private struct GeneralPage: View {
                         .focusable(false)
                     }
                 }
-                Row("Double-tap ⇧ to click through", detail: "Clicks reach the app and the hand stays. Double-tap again for taps. The menu bar icon turns orange.") {
+                Row(Preferences.pointerMode ? "Double-tap ⇧ to switch to taps" : "Double-tap ⇧ to click through",
+                    detail: Preferences.pointerMode
+                        ? "Clicks tap until you double-tap again. The menu bar icon turns orange."
+                        : "Clicks reach the app and the hand stays. Double-tap again for taps. The menu bar icon turns orange.") {
                     Toggle("", isOn: model.binding({ Preferences.doubleShiftClickThrough }, { Preferences.doubleShiftClickThrough = $0 }))
                         .toggleStyle(.switch)
                         .labelsHidden()
@@ -457,6 +473,10 @@ private struct GeneralPage: View {
             Card(title: "Startup") {
                 Row("Open TinyHand when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Turn the pointer on when TinyHand opens") {
+                    Toggle("", isOn: model.binding({ Preferences.turnOnAtLaunch }, { Preferences.turnOnAtLaunch = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
                 if let updater = model.updater {

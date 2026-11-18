@@ -15,6 +15,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var updater: Updater? {
         didSet { model.updater = updater }
     }
+    var onClose: (() -> Void)?
 
     private var window: NSWindow?
     private let model = SettingsModel()
@@ -81,6 +82,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         onRecording?(false)
+        onClose?()
     }
 }
 

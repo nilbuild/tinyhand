@@ -129,6 +129,17 @@ enum Preferences {
         set { set(newValue, "interactKeepsHand") }
     }
 
+    /// Pointer mode: the hand is the everyday cursor and clicks reach apps; holding the interact key taps and draws.
+    static var pointerMode: Bool {
+        get { defaults.bool(forKey: "pointerMode") }
+        set { set(newValue, "pointerMode") }
+    }
+
+    static var turnOnAtLaunch: Bool {
+        get { defaults.bool(forKey: "turnOnAtLaunch") }
+        set { set(newValue, "turnOnAtLaunch") }
+    }
+
     static var doubleShiftClickThrough: Bool {
         get { defaults.object(forKey: "doubleShiftClickThrough") as? Bool ?? true }
         set { set(newValue, "doubleShiftClickThrough") }
@@ -186,7 +197,7 @@ enum Preferences {
 
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
-                    "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
+                    "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pointerMode", "turnOnAtLaunch", "doubleShiftClickThrough", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "showToolbar", "tapSound"] {
             defaults.removeObject(forKey: key)
         }

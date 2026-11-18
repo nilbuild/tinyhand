@@ -12,6 +12,8 @@ final class OverlayController {
     private let inputTap = InputTap()
     private let tapSound = TapSound()
     private var interactHeld = false
+    private var presenting = true
+    private var resumeAfterSystem = false
     private var menuHover = false
     private var guardCursorUntil = Date.distantPast
     private var timer: Timer?
@@ -137,8 +139,8 @@ final class OverlayController {
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
-            if let self = self, !Preferences.doubleShiftClickThrough, self.isClickThrough {
-                self.setClickThrough(false)
+            if let self = self, !Preferences.doubleShiftClickThrough, self.isLatched {
+                self.setClickThrough(Preferences.pointerMode)
             }
             self?.armView.updateInkColor()
             self?.tapSound.load(Preferences.tapSound)
@@ -209,6 +211,21 @@ final class OverlayController {
                 self?.turnOffForSystem(name.rawValue)
             }
         }
+        distributed.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+            self?.resumeAfterSystemIfNeeded("unlocked")
+        }
+        let wakes: [Notification.Name] = [
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.didWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification,
+        ]
+        for name in wakes {
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    self?.resumeAfterSystemIfNeeded(name.rawValue)
+                }
+            }
+        }
         workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.followSpace()
         }
@@ -232,6 +249,11 @@ final class OverlayController {
 
     var isClickThrough: Bool {
         isActive && inputTap.clickThrough
+    }
+
+    /// Double-tapping Shift has switched away from the mode the pointer starts in.
+    var isLatched: Bool {
+        isActive && inputTap.clickThrough != Preferences.pointerMode
     }
 
     private func installShiftMonitors() {
@@ -310,14 +332,26 @@ final class OverlayController {
         if on {
             release()
         }
-        toolbar.showHint(on
-            ? [("Clicks go through", "the hand stays"), ("Double-tap ⇧", "to tap again")]
-            : [("Taps", "clicks don't reach apps"), ("Double-tap ⇧", "to click through")])
+        toolbar.showHint(OverlayController.modeHint(clicksThrough: on))
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.toolbar.hideHint()
         }
         wake()
         onActiveChanged?()
+    }
+
+    private static func modeHint(clicksThrough: Bool) -> [(key: String, text: String)] {
+        let key = Preferences.interactKey
+        var parts: [(key: String, text: String)] = clicksThrough
+            ? [("Clicks go through", "the hand stays")]
+            : [("Taps", "clicks don't reach apps")]
+        if key != .off {
+            parts.append(clicksThrough ? ("Hold \(key.symbol)", "to tap and draw") : ("Hold \(key.symbol)", "to click for real"))
+        }
+        if Preferences.doubleShiftClickThrough {
+            parts.append(clicksThrough ? ("Double-tap ⇧", "to tap") : ("Double-tap ⇧", "to click through"))
+        }
+        return parts
     }
 
     private func turnOffForSystem(_ reason: String) {
@@ -326,6 +360,17 @@ final class OverlayController {
         }
         Log.write("turning pointer off: \(reason)")
         deactivate()
+        resumeAfterSystem = Preferences.pointerMode
+    }
+
+    // In pointer mode the hand is the everyday cursor, so it comes back after sleep or a lock.
+    private func resumeAfterSystemIfNeeded(_ reason: String) {
+        guard resumeAfterSystem, !isActive, !InputTap.screenLocked else {
+            return
+        }
+        resumeAfterSystem = false
+        Log.write("turning pointer back on: \(reason)")
+        activate()
     }
 
     private func release() {
@@ -409,6 +454,7 @@ final class OverlayController {
             return false
         }
         isActive = true
+        resumeAfterSystem = false
         currentFrame = nil
         tapSound.warm()
 
@@ -423,7 +469,7 @@ final class OverlayController {
             options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
         let installed = inputTap.install()
         inputTap.interactKey = Preferences.interactKey.cgFlags
-        inputTap.clickThrough = false
+        inputTap.clickThrough = Preferences.pointerMode
         installShiftMonitors()
         inputTap.setActive(installed)
         Log.write("activate trusted=\(AXIsProcessTrusted()) tapInstalled=\(installed)")
@@ -436,14 +482,19 @@ final class OverlayController {
         revealUntil = Date().addingTimeInterval(3)
         if installed && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
             UserDefaults.standard.set(true, forKey: OverlayController.hintShownKey)
-            var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw")]
-            if Preferences.interactKey != .off {
-                parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
+            var parts: [(key: String, text: String)]
+            if Preferences.pointerMode {
+                parts = OverlayController.modeHint(clicksThrough: true)
+            } else {
+                parts = [("Click", "to tap"), ("Drag", "to draw")]
+                if Preferences.interactKey != .off {
+                    parts.append(("Hold \(Preferences.interactKey.symbol)", "to click for real"))
+                }
+                if Preferences.doubleShiftClickThrough {
+                    parts.append(("Double-tap ⇧", "to click through"))
+                }
+                parts.append(("Esc", "to exit"))
             }
-            if Preferences.doubleShiftClickThrough {
-                parts.append(("Double-tap ⇧", "to click through"))
-            }
-            parts.append(("Esc", "to exit"))
             toolbar.showHint(parts)
             revealUntil = Date().addingTimeInterval(10)
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
@@ -507,11 +558,15 @@ final class OverlayController {
         let overMenu = menuBar.contains(mouse) || menuRects.contains { $0.contains(cgMouse) }
             || Date() < menuOpeningUntil
         let key = Preferences.interactKey.cgFlags
-        let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
+        let keyHeld = !key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)
+        let interacting = keyHeld || inputTap.interactPressing
         interactHeld = interacting
         menuHover = overMenu
         let through = inputTap.clickThrough
-        let normal = !drawing && !Preferences.interactKeepsHand && ((interacting && !through) || overMenu || ownMenuOpen)
+        presenting = keyHeld == through && !inputTap.interactPressing
+        // In pointer mode the hand is the cursor, so it stays over the menu bar and menus, right-click ones too.
+        let keepHand = Preferences.interactKeepsHand || Preferences.pointerMode
+        let normal = !drawing && !keepHand && ((interacting && !through) || overMenu || ownMenuOpen)
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen && !through)
 
         if normal != normalCursor {
@@ -726,7 +781,7 @@ final class OverlayController {
 
         updateZones(mouse: mouse, screen: screen)
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
-        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld && !inputTap.clickThrough
+        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && presenting
         if window.ignoresMouseEvents == catchMouse {
             window.ignoresMouseEvents = !catchMouse
         }

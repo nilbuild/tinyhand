@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clearHotKey: UInt32?
     private lazy var automation = Automation(overlay: overlay)
     private var launched = false
+    private var resumeAfterSettings = false
     private var pendingURLs: [URL] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -60,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
             welcome.show()
+        } else if Preferences.turnOnAtLaunch {
+            overlay.activate()
         }
 
         automation.writeState()
@@ -111,6 +114,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.apply(s, isToggle: false) ?? false
         }
         settings.updater = Updater.isAvailable ? updater : nil
+        settings.onClose = { [weak self] in
+            guard let self = self, self.resumeAfterSettings else {
+                return
+            }
+            self.resumeAfterSettings = false
+            self.overlay.activate()
+        }
         settings.onRecording = { [weak self] recording in
             if recording {
                 self?.unregisterHotKeys()
@@ -211,6 +221,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSettings() {
+        // In pointer mode the hand is the everyday cursor, so it comes back when Settings closes.
+        resumeAfterSettings = resumeAfterSettings || (overlay.isActive && Preferences.pointerMode)
         overlay.exit()
         settings.show()
     }
@@ -250,9 +262,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         image?.size = NSSize(width: 18, height: 18)
         image?.isTemplate = true
         statusItem.button?.image = image
-        if overlay.isClickThrough, let image = image {
+        if overlay.isLatched, let image = image {
             statusItem.button?.image = AppDelegate.tinted(image, .systemOrange)
-            statusItem.button?.toolTip = "TinyHand clicks go through — double-tap ⇧ to tap again, click to turn off"
+            statusItem.button?.toolTip = overlay.isClickThrough
+                ? "TinyHand clicks go through — double-tap ⇧ to tap again, click to turn off"
+                : "TinyHand taps — double-tap ⇧ for normal clicks, click to turn off"
             return
         }
         statusItem.button?.toolTip = overlay.isActive
