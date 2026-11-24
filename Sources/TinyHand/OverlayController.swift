@@ -25,6 +25,7 @@ final class OverlayController {
     private var normalCursor = false
     private var ownMenuOpen = false
     private var menuRects: [CGRect] = []
+    private var coverRects: [CGRect] = []
     private var lastMenuScan = Date.distantPast
     private var menuOpeningUntil = Date.distantPast
     private var escHotKey: UInt32?
@@ -218,6 +219,8 @@ final class OverlayController {
         guard isActive else {
             return
         }
+        // The window list changes with the Space, so scan for menus and covers again on the next tick.
+        defer { lastMenuScan = .distantPast }
         let onSpace = window.isOnActiveSpace
         Log.write("space changed, overlay on active space=\(onSpace)")
         if onSpace {
@@ -415,6 +418,8 @@ final class OverlayController {
         CursorHider.hide()
         tick()
         window.orderFrontRegardless()
+        // The scan in that tick ran before the overlay was listed, so scan again on the next one.
+        lastMenuScan = .distantPast
 
         stillSince = Date()
         runTimer(every: OverlayController.busyInterval)
@@ -500,7 +505,11 @@ final class OverlayController {
         let scanEvery = menuLikely ? OverlayController.menuScanFast : OverlayController.menuScanSlow
         if Date().timeIntervalSince(lastMenuScan) > scanEvery {
             lastMenuScan = Date()
-            menuRects = OverlayController.openMenus()
+            let hadCover = !coverRects.isEmpty
+            (menuRects, coverRects) = OverlayController.openMenus(overlay: window.windowNumber, overlayLevel: window.level.rawValue)
+            if hadCover != !coverRects.isEmpty {
+                Log.write(coverRects.isEmpty ? "no windows in front of the overlay" : "window in front of the overlay: \(coverRects.map { "\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" })")
+            }
         }
         let menuBar = OverlayController.menuBarRect(screen)
         let cgMouse = OverlayController.cgPoint(mouse)
@@ -511,12 +520,13 @@ final class OverlayController {
         interactHeld = interacting
         menuHover = overMenu
         let through = inputTap.clickThrough
-        let normal = !drawing && !Preferences.interactKeepsHand && ((interacting && !through) || overMenu || ownMenuOpen)
+        let overCover = coverRects.contains { $0.contains(cgMouse) }
+        let normal = overCover || (!drawing && !Preferences.interactKeepsHand && ((interacting && !through) || overMenu || ownMenuOpen))
         setEscEnabled(menuRects.isEmpty && !ownMenuOpen && !through)
 
         if normal != normalCursor {
             let at = "at \(Int(mouse.x)),\(Int(mouse.y))"
-            let why = interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
+            let why = overCover ? "window in front" : interacting ? "interact key" : menuBar.contains(mouse) ? "menu bar" : "menu"
             Log.write(normal ? "real cursor (\(why)) \(at)" : "pointer back \(at)")
             normalCursor = normal
             armView.pointerHidden = normal
@@ -553,20 +563,45 @@ final class OverlayController {
         return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
     }
 
-    private static func openMenus() -> [CGRect] {
+    // Open menus, plus windows macOS draws in front of the overlay although their level is lower,
+    // like the password prompts from SecurityAgent (layer 1000 against the overlay's 1002).
+    // Over these the real cursor shows and clicks go through. Windows at the same or a higher level,
+    // like CleanShot X's full-screen layer, are in front by ordinary window ordering; they don't
+    // count, as before this check existed. Returns all of them, and separately the ones covering the overlay.
+    private static func openMenus(overlay: Int, overlayLevel: Int) -> (all: [CGRect], covering: [CGRect]) {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else {
-            return []
+            return ([], [])
         }
         let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
-        return list.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int) == menuLevel,
+        let me = Int(getpid())
+        var inFront = true
+        var rects: [CGRect] = []
+        var coveringRects: [CGRect] = []
+        // The list runs front to back, so everything before the overlay is drawn over it.
+        for info in list {
+            if (info[kCGWindowNumber as String] as? Int) == overlay {
+                inFront = false
+                continue
+            }
+            guard let layer = info[kCGWindowLayer as String] as? Int,
                   let bounds = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else {
-                return nil
+                continue
             }
-            return rect
+            if layer == menuLevel {
+                rects.append(rect)
+            }
+            if inFront && layer < overlayLevel && (info[kCGWindowOwnerPID as String] as? Int) != me {
+                coveringRects.append(rect)
+            }
         }
+        // Not listed while it is off the active Space (during a Space switch): then nothing is in front of it.
+        if inFront {
+            coveringRects = []
+        }
+        rects += coveringRects
+        return (rects, coveringRects)
     }
 
     private static func cgPoint(_ p: CGPoint) -> CGPoint {
