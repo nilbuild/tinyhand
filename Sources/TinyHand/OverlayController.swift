@@ -502,7 +502,7 @@ final class OverlayController {
         if Date().timeIntervalSince(lastMenuScan) > scanEvery {
             lastMenuScan = Date()
             let hadCover = !coverRects.isEmpty
-            (menuRects, coverRects) = OverlayController.openMenus(overlay: window.windowNumber)
+            (menuRects, coverRects) = OverlayController.openMenus(overlay: window.windowNumber, overlayLevel: window.level.rawValue)
             if hadCover != !coverRects.isEmpty {
                 Log.write(coverRects.isEmpty ? "no windows in front of the overlay" : "window in front of the overlay: \(coverRects.map { "\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" })")
             }
@@ -559,16 +559,17 @@ final class OverlayController {
         return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
     }
 
-    // Open menus, plus windows macOS draws in front of the overlay whatever its level, like the
-    // password prompts from SecurityAgent. Over these the real cursor shows and clicks go through.
-    // Returns all of them, and separately the ones in front of the overlay, which hide the hand.
-    private static func openMenus(overlay: Int) -> (all: [CGRect], covering: [CGRect]) {
+    // Open menus, plus windows macOS draws in front of the overlay although their level is not
+    // higher, like the password prompts from SecurityAgent (layer 1000 against the overlay's 1002).
+    // Over these the real cursor shows and clicks go through. Windows above the overlay's level,
+    // like CleanShot X's full-screen layer, are there by their level and are usually click-through,
+    // so they don't count. Returns all of them, and separately the ones covering the overlay.
+    private static func openMenus(overlay: Int, overlayLevel: Int) -> (all: [CGRect], covering: [CGRect]) {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else {
             return ([], [])
         }
         let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
-        let cursorLevel = Int(CGWindowLevelForKey(.cursorWindow))
         let me = Int(getpid())
         var inFront = true
         var rects: [CGRect] = []
@@ -584,14 +585,18 @@ final class OverlayController {
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else {
                 continue
             }
-            let covering = inFront && layer < cursorLevel && (info[kCGWindowOwnerPID as String] as? Int) != me
-            if layer == menuLevel || covering {
+            if layer == menuLevel {
                 rects.append(rect)
             }
-            if covering {
+            if inFront && layer <= overlayLevel && (info[kCGWindowOwnerPID as String] as? Int) != me {
                 coveringRects.append(rect)
             }
         }
+        // Not listed while it is off the active Space (during a Space switch): then nothing is in front of it.
+        if inFront {
+            coveringRects = []
+        }
+        rects += coveringRects
         return (rects, coveringRects)
     }
 
