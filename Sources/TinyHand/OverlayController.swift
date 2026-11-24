@@ -227,6 +227,7 @@ final class OverlayController {
         window.orderFrontRegardless()
         toolbar.show()
         currentFrame = nil
+        lastMenuScan = .distantPast
         tick()
         Log.write("re-showed overlay, now on active space=\(window.isOnActiveSpace)")
     }
@@ -416,6 +417,8 @@ final class OverlayController {
         CursorHider.hide()
         tick()
         window.orderFrontRegardless()
+        // The scan in that tick ran before the overlay was listed, so scan again on the next one.
+        lastMenuScan = .distantPast
 
         stillSince = Date()
         runTimer(every: OverlayController.busyInterval)
@@ -559,11 +562,11 @@ final class OverlayController {
         return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
     }
 
-    // Open menus, plus windows macOS draws in front of the overlay although their level is not
-    // higher, like the password prompts from SecurityAgent (layer 1000 against the overlay's 1002).
-    // Over these the real cursor shows and clicks go through. Windows above the overlay's level,
-    // like CleanShot X's full-screen layer, are there by their level and are usually click-through,
-    // so they don't count. Returns all of them, and separately the ones covering the overlay.
+    // Open menus, plus windows macOS draws in front of the overlay although their level is lower,
+    // like the password prompts from SecurityAgent (layer 1000 against the overlay's 1002).
+    // Over these the real cursor shows and clicks go through. Windows at the same or a higher level,
+    // like CleanShot X's full-screen layer, are in front by their level alone; they don't count, as
+    // before this check existed. Returns all of them, and separately the ones covering the overlay.
     private static func openMenus(overlay: Int, overlayLevel: Int) -> (all: [CGRect], covering: [CGRect]) {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else {
@@ -588,7 +591,7 @@ final class OverlayController {
             if layer == menuLevel {
                 rects.append(rect)
             }
-            if inFront && layer <= overlayLevel && (info[kCGWindowOwnerPID as String] as? Int) != me {
+            if inFront && layer < overlayLevel && (info[kCGWindowOwnerPID as String] as? Int) != me {
                 coveringRects.append(rect)
             }
         }
