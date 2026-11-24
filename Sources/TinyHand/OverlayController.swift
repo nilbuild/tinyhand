@@ -219,6 +219,8 @@ final class OverlayController {
         guard isActive else {
             return
         }
+        // The window list changes with the Space, so scan for menus and covers again on the next tick.
+        defer { lastMenuScan = .distantPast }
         let onSpace = window.isOnActiveSpace
         Log.write("space changed, overlay on active space=\(onSpace)")
         if onSpace {
@@ -227,7 +229,6 @@ final class OverlayController {
         window.orderFrontRegardless()
         toolbar.show()
         currentFrame = nil
-        lastMenuScan = .distantPast
         tick()
         Log.write("re-showed overlay, now on active space=\(window.isOnActiveSpace)")
     }
@@ -565,8 +566,8 @@ final class OverlayController {
     // Open menus, plus windows macOS draws in front of the overlay although their level is lower,
     // like the password prompts from SecurityAgent (layer 1000 against the overlay's 1002).
     // Over these the real cursor shows and clicks go through. Windows at the same or a higher level,
-    // like CleanShot X's full-screen layer, are in front by their level alone; they don't count, as
-    // before this check existed. Returns all of them, and separately the ones covering the overlay.
+    // like CleanShot X's full-screen layer, are in front by ordinary window ordering; they don't
+    // count, as before this check existed. Returns all of them, and separately the ones covering the overlay.
     private static func openMenus(overlay: Int, overlayLevel: Int) -> (all: [CGRect], covering: [CGRect]) {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else {
