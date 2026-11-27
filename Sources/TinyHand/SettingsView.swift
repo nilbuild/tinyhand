@@ -193,12 +193,48 @@ final class SettingsModel: ObservableObject {
         previewSound?.warm()
     }
 
-    func preview(_ choice: TapSoundChoice) {
+    func preview(_ choice: String) {
         if previewSound == nil {
             previewSound = TapSound(choice)
         }
         previewSound?.load(choice)
         previewSound?.play()
+    }
+
+    @Published var soundMessage: String?
+
+    func chooseSoundFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = false
+        panel.message = "Pick a short sound for the tap"
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        do {
+            selectSound(try CustomSounds.add(from: url).id)
+        } catch let problem as HandMaker.Problem {
+            soundMessage = problem.message
+        } catch {
+            soundMessage = "TinyHand couldn't add that sound."
+        }
+    }
+
+    func selectSound(_ id: String) {
+        soundMessage = nil
+        Preferences.tapSound = id
+        Preferences.handSound = true
+        preview(id)
+        revision += 1
+    }
+
+    func removeSound(_ id: String) {
+        if Preferences.tapSound == id {
+            Preferences.tapSound = TapSoundChoice.thock.rawValue
+        }
+        CustomSounds.remove(id)
+        soundMessage = nil
+        revision += 1
     }
 
     @Published var dragging: PointerStyle?
@@ -1024,15 +1060,21 @@ private struct SoundPage: View {
                         model.refresh()
                     }
                     ForEach(TapSoundChoice.allCases, id: \.self) { choice in
-                        SoundTile(title: choice.title, symbol: "waveform", selected: on && Preferences.tapSound == choice) {
-                            Preferences.tapSound = choice
-                            Preferences.handSound = true
-                            model.preview(choice)
-                            model.refresh()
+                        SoundTile(title: choice.title, symbol: "waveform", selected: on && Preferences.tapSound == choice.rawValue) {
+                            model.selectSound(choice.rawValue)
                         }
                     }
+                    ForEach(CustomSounds.all, id: \.id) { sound in
+                        SoundTile(title: sound.name, symbol: "music.note", selected: on && Preferences.tapSound == sound.id,
+                                  onDelete: { model.removeSound(sound.id) }) {
+                            model.selectSound(sound.id)
+                        }
+                    }
+                    SoundTile(title: "Add sound…", symbol: "plus", selected: false) {
+                        model.chooseSoundFile()
+                    }
                 }
-                Text("Click a sound to hear it. It plays each time the hand taps.")
+                Text(model.soundMessage ?? "Click a sound to hear it. It plays each time the hand taps. Add your own from any audio file; TinyHand keeps the first \(Int(CustomSounds.maxSeconds)) seconds.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
@@ -1083,6 +1125,7 @@ private struct SoundTile: View {
     let title: String
     let symbol: String
     let selected: Bool
+    var onDelete: (() -> Void)?
     let action: () -> Void
     @State private var hovering = false
 
@@ -1112,6 +1155,22 @@ private struct SoundTile: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+        .overlay(alignment: .topTrailing) {
+            if let onDelete = onDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, height: 16)
+                        .background(Circle().fill(Color.primary.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .padding(6)
+                .opacity(hovering ? 1 : 0)
+                .help("Delete \(title)")
+            }
+        }
         .onHover { hovering = $0 }
     }
 }
