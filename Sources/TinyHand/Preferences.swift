@@ -114,9 +114,13 @@ enum Preferences {
         set { set(newValue, "sound.hands") }
     }
 
-    static var tapSound: TapSoundChoice {
-        get { defaults.string(forKey: "tapSound").flatMap(TapSoundChoice.init(rawValue:)) ?? .thock }
-        set { set(newValue.rawValue, "tapSound") }
+    /// A `TapSoundChoice` raw value, or the id of a custom sound.
+    static var tapSound: String {
+        get {
+            let id = defaults.string(forKey: "tapSound") ?? ""
+            return TapSoundChoice(rawValue: id) != nil || CustomSounds.sound(id) != nil ? id : TapSoundChoice.thock.rawValue
+        }
+        set { set(newValue, "tapSound") }
     }
 
     static var laserSound: Bool {
